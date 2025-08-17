@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    "noEmit": false,
+    "allowImportingTsExtensions": false
+  },
+  "include": [
+    "src/main.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.tsx",
+    "src/components",
+    "src/pages",
+    "src/hooks",
+    "src/App.tsx",
+    "src/main.tsx"
+  ]
+}

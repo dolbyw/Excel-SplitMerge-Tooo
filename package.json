@@ -1,0 +1,83 @@
+{
+  "name": "excel-split-merge-tool",
+  "private": true,
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "homepage": "./",
+  "scripts": {
+    "dev": "concurrently \"npm run build:main\" \"npm run dev:renderer\"",
+    "dev:renderer": "vite",
+    "build:main": "tsc -p tsconfig.main.json && node scripts/copy-python.js",
+    "build:preload": "vite build --config vite.preload.config.ts",
+    "build:renderer": "tsc -b && vite build",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "electron:dev": "concurrently \"npm run build:main && npm run build:preload\" \"npm run dev:renderer\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "electron:pack": "npm run build && electron-builder",
+    "electron:dist": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish=never",
+    "electron:packager": "npm run build && electron-packager . Tooo --platform=win32 --arch=x64 --out=dist-packager-fixed --overwrite --ignore=\"^/node_modules\" --ignore=\"^/src\" --ignore=\"\\.git\" --ignore=\"^/\\.trae\" --ignore=\"^/api\" --ignore=\"^/\\.vercel\"",
+    "lint": "eslint .",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "antd": "^5.22.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.515.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.3.1",
+    "tailwind-merge": "^3.0.3",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@types/node": "^22.16.0",
+    "@types/react": "^18.3.14",
+    "@types/react-dom": "^18.3.2",
+    "@vitejs/plugin-react": "^4.4.2",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.2",
+    "cross-env": "^10.0.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-packager": "^17.1.2",
+    "eslint": "^9.26.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.0.0",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^3.4.18",
+    "typescript": "~5.8.4",
+    "typescript-eslint": "^8.31.0",
+    "vite": "^6.3.6",
+    "vite-plugin-trae-solo-badge": "^1.0.0",
+    "vite-tsconfig-paths": "^5.1.5",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.excel.splitmergeTool",
+    "productName": "Tooo",
+    "directories": {
+      "output": "dist-app-fixed"
+    },
+    "forceCodeSigning": false,
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      "merge_excel.py",
+      "merge_excel_format.py",
+      "split_excel.py",
+      "split_excel_format.py"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "public/tooo-icon.svg",
+      "sign": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
