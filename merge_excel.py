@@ -2,6 +2,17 @@ import pandas as pd
 import os
 import argparse
 import glob
+import sys
+import warnings
+from utils import ExcelFileProcessor
+
+# 设置输出编码为UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+# 忽略xlrd和pandas的警告信息
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', category=FutureWarning, module='xlrd')
 
 def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
     try:
@@ -45,10 +56,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
     for i, file_path in enumerate(excel_files, 1):
         try:
             print(f"正在读取文件 ({i}/{total_files}): {file_path}")
-            
-            # 对于大文件，可以考虑分块读取，但Excel文件通常需要一次性读取
-            df = pd.read_excel(file_path)
-            
+            try:
+                print(f"  文件大小: {os.path.getsize(file_path)} 字节")
+            except Exception:
+                pass
+
+            # 统一使用嗅探式读取，自动兼容“扩展名.xls但实际为.xlsx(Zip)”的文件
+            df = ExcelFileProcessor.read_excel_with_optimization(file_path)
+
             if df.empty:
                 print(f"警告：文件 {file_path} 为空，跳过")
                 continue
@@ -117,9 +132,24 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                     processed_data.append(df)
             merged_df = pd.concat(processed_data, ignore_index=True)
         
+        # 确保输出文件为.xlsx格式（即使输入包含.xls文件）
+        if not output_file.lower().endswith('.xlsx'):
+            if output_file.lower().endswith('.xls'):
+                output_file = output_file[:-4] + '.xlsx'
+                print(f"输出文件格式已自动转换为.xlsx格式")
+            elif not output_file.lower().endswith(('.xlsx', '.xls')):
+                output_file += '.xlsx'
+                print(f"输出文件已自动添加.xlsx扩展名")
+        
         print(f"开始保存到文件: {output_file}")
-        # 保存合并后的文件
-        merged_df.to_excel(output_file, index=False)
+        # 保存合并后的文件（统一使用openpyxl引擎确保.xlsx格式）
+        try:
+            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                merged_df.to_excel(writer, index=False)
+        except Exception as e:
+            print(f"警告：使用openpyxl引擎保存失败，尝试默认方法: {e}")
+            merged_df.to_excel(output_file, index=False)
+        
         print(f"合并完成！共处理{len(excel_files)}个文件，合并{len(merged_df)}行数据，输出文件：{output_file}")
         
     except Exception as e:

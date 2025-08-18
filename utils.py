@@ -7,11 +7,16 @@
 import os
 import sys
 import pandas as pd
+import warnings
 from typing import List, Optional, Tuple
 
 # 设置输出编码为UTF-8
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
+
+# 忽略xlrd和pandas的警告信息
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', category=FutureWarning, module='xlrd')
 
 
 class FileValidator:
@@ -65,9 +70,80 @@ class ExcelFileProcessor:
     
     @staticmethod
     def read_excel_with_optimization(file_path: str) -> pd.DataFrame:
-        """读取Excel文件并进行内存优化"""
+        """读取Excel文件并进行内存优化，支持.xls、.xlsx和HTML格式"""
         try:
-            df = pd.read_excel(file_path)
+            # 基于文件头进行容器嗅探，解决"扩展名为.xls但实际是其他格式"的兼容问题
+            magic = b""
+            try:
+                with open(file_path, 'rb') as f:
+                    magic = f.read(16)  # 读取更多字节以便更好地检测
+            except Exception:
+                magic = b""
+
+            # 根据文件扩展名与嗅探结果选择合适的引擎
+            engine = None
+            if file_path.lower().endswith('.xls'):
+                if magic.startswith(b'PK'):
+                    # 实际是.xlsx（Zip/OOXML）
+                    engine = 'openpyxl'
+                    print("检测到扩展名为 .xls 但实际为 .xlsx (Zip/OOXML) 容器，自动使用 openpyxl 引擎")
+                elif magic.startswith(b'\xD0\xCF\x11\xE0'):
+                    # 经典OLE2二进制.xls
+                    engine = 'xlrd'
+                    print("检测到真实二进制 .xls (OLE2)，使用 xlrd 引擎")
+                elif magic.startswith(b'<html') or magic.startswith(b'<HTML') or b'<html' in magic[:50]:
+                    # HTML格式的表格文件（常见于某些系统导出的.xls文件）
+                    print("检测到 HTML 格式的表格文件，使用 pandas.read_html 读取")
+                    try:
+                        # 使用read_html读取HTML表格
+                        tables = pd.read_html(file_path, encoding='utf-8')
+                        if tables:
+                            df = tables[0]  # 取第一个表格
+                            print(f"成功从HTML中读取表格，共{len(df)}行数据")
+                            return df
+                        else:
+                            raise ValueError("HTML文件中未找到表格")
+                    except Exception as html_e:
+                        print(f"HTML读取失败，尝试其他方法: {html_e}")
+                        # 如果HTML读取失败，继续尝试其他引擎
+                        engine = 'xlrd'
+                else:
+                    # 无法明确识别，优先尝试xlrd
+                    engine = 'xlrd'
+                    print("无法明确识别 .xls 容器类型，优先尝试 xlrd 引擎")
+            elif file_path.lower().endswith('.xlsx'):
+                engine = 'openpyxl'  # 使用openpyxl引擎处理.xlsx文件
+                print(f"检测到.xlsx格式文件，使用openpyxl引擎")
+            
+            # 尝试使用选择的引擎读取
+            try:
+                df = pd.read_excel(file_path, engine=engine)
+            except Exception as e:
+                print(f"使用{engine}引擎失败，尝试自动检测引擎: {e}")
+                # 针对.xls但嗅探为Zip的场景，再显式尝试 openpyxl
+                if file_path.lower().endswith('.xls') and magic.startswith(b'PK'):
+                    try:
+                        print("再次显式使用 openpyxl 引擎尝试读取 .xls(Zip) ...")
+                        df = pd.read_excel(file_path, engine='openpyxl')
+                    except Exception as e2:
+                        print(f"显式 openpyxl 仍失败: {e2}")
+                        raise e2
+                else:
+                    # 最后尝试HTML读取（如果之前没有尝试过）
+                    if not (magic.startswith(b'<html') or magic.startswith(b'<HTML') or b'<html' in magic[:50]):
+                        df = pd.read_excel(file_path)
+                    else:
+                        try:
+                            print("最后尝试使用 pandas.read_html 读取...")
+                            tables = pd.read_html(file_path, encoding='utf-8')
+                            if tables:
+                                df = tables[0]
+                                print(f"HTML读取成功，共{len(df)}行数据")
+                            else:
+                                raise ValueError("HTML文件中未找到表格")
+                        except Exception as final_e:
+                            print(f"所有方法都失败了: {final_e}")
+                            raise final_e
             
             # 对大文件进行内存优化
             if len(df) > 10000:

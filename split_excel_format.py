@@ -3,12 +3,17 @@ import pandas as pd
 import os
 import argparse
 import sys
+import warnings
 from openpyxl import load_workbook, Workbook
+from openpyxl.utils import get_column_letter
 
 # 设置输出编码为UTF-8
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
-from openpyxl.utils import get_column_letter
+
+# 忽略xlrd和openpyxl的警告信息
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', category=FutureWarning, module='xlrd')
 
 
 def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
@@ -26,6 +31,93 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
         
         print(f"开始读取Excel文件: {input_file}")
         
+        # 检测文件格式并选择合适的处理方式
+        if input_file.lower().endswith('.xls'):
+            print("检测到.xls格式文件，使用pandas+xlrd引擎读取")
+            print(f"文件路径: {input_file}")
+            print(f"文件大小: {os.path.getsize(input_file)} 字节")
+            
+            # 对于.xls文件，先用pandas读取数据，然后用openpyxl创建新文件
+            try:
+                print("尝试使用xlrd引擎读取.xls文件...")
+                df = pd.read_excel(input_file, sheet_name=0, engine='xlrd')
+                print(f"成功读取.xls文件，共{len(df)}行数据")
+                
+                # 将DataFrame转换为openpyxl工作簿以保持格式处理的一致性
+                from openpyxl import Workbook
+                from openpyxl.utils.dataframe import dataframe_to_rows
+                
+                wb = Workbook()
+                ws = wb.active
+                
+                # 写入数据到工作表
+                for r in dataframe_to_rows(df, index=False, header=True):
+                    ws.append(r)
+                
+                total_rows_with_header = len(df) + 1  # 数据行数 + 表头
+                
+            except Exception as e:
+                print(f"使用xlrd引擎失败: {e}")
+                print("尝试使用默认方法读取.xls文件...")
+                try:
+                    df = pd.read_excel(input_file, sheet_name=0)
+                    print(f"成功使用默认方法读取.xls文件，共{len(df)}行数据")
+                    
+                    from openpyxl import Workbook
+                    from openpyxl.utils.dataframe import dataframe_to_rows
+                    
+                    wb = Workbook()
+                    ws = wb.active
+                    
+                    for r in dataframe_to_rows(df, index=False, header=True):
+                        ws.append(r)
+                    
+                    total_rows_with_header = len(df) + 1
+                    
+                except Exception as e2:
+                    print(f"所有方法都失败: {e2}")
+                    print("请确保已安装正确版本的xlrd库 (xlrd==1.2.0)")
+                    print("可以尝试运行: pip install xlrd==1.2.0")
+                    sys.exit(1)
+        else:
+            # 使用openpyxl读取Excel文件(.xlsx格式)
+            print("检测到.xlsx格式文件，使用openpyxl引擎")
+            wb = load_workbook(input_file, read_only=True)
+            ws = wb.active
+            
+            # 获取总行数（包含表头）
+            total_rows_with_header = ws.max_row
+        
+        if total_rows_with_header == 0:
+            print("警告：Excel文件为空")
+            return
+        
+        print(f"文件总行数（含表头）：{total_rows_with_header}")
+        
+        # 计算分割文件数量
+        if copy_headers:
+            # 如果复制表头，数据行数 = 总行数 - 1
+            data_rows = max(0, total_rows_with_header - 1)
+        else:
+            # 如果不复制表头，所有行都是数据行
+            data_rows = total_rows_with_header
+        
+        if data_rows == 0:
+            print("警告：没有数据行需要拆分")
+            # 创建一个空文件
+            os.makedirs(output_dir, exist_ok=True)
+            base_name = os.path.splitext(os.path.basename(input_file))[0]
+            output_file = os.path.join(output_dir, f'{base_name}Split1.xlsx')
+            new_wb = Workbook()
+            new_ws = new_wb.active
+            # 如果要求复制表头，复制表头
+            if copy_headers and total_rows_with_header >= 1:
+                for cell in ws[1]:
+                    new_ws[cell.coordinate].value = cell.value
+            new_wb.save(output_file)
+            print(f'已创建文件：{output_file}（行数：{0 if not copy_headers else 1}）')
+            return
+        
     except FileNotFoundError as e:
         print(f"错误: {e}")
         sys.exit(1)
@@ -35,35 +127,6 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
     except Exception as e:
         print(f"读取Excel文件失败: {e}")
         sys.exit(1)
-    try:
-        # 使用openpyxl加载原始工作簿
-        wb = load_workbook(input_file)
-        ws = wb.active
-        
-        # 总行数（包含表头）
-        total_rows_with_header = ws.max_row
-        print(f"成功读取文件，共{total_rows_with_header}行数据")
-        
-        if total_rows_with_header < 2:
-            # 没有数据行
-            os.makedirs(output_dir, exist_ok=True)
-            base_name = os.path.splitext(os.path.basename(input_file))[0]
-            output_file = os.path.join(output_dir, f'{base_name}Split1.xlsx')
-            new_wb = Workbook()
-    except Exception as e:
-        print(f"读取Excel文件失败: {e}")
-        sys.exit(1)
-        new_ws = new_wb.active
-        # 如果要求复制表头，复制表头（修复：此前未判断 copy_headers，导致始终复制表头）
-        if copy_headers and total_rows_with_header >= 1:
-            for cell in ws[1]:
-                new_ws[cell.coordinate].value = cell.value
-        new_wb.save(output_file)
-        print(f'已创建文件：{output_file}（行数：{0 if not copy_headers else 1}）')
-        return
-
-    # 数据行数（不含表头）
-    data_rows = total_rows_with_header - 1
 
     # 计算分割文件数量（按数据行数切分）
     num_files = (data_rows + rows_per_file - 1) // rows_per_file

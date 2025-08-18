@@ -1,0 +1,13 @@
+# Excel处理工具所需的Python依赖包
+# 用于确保100%可靠地处理Excel文件（包括.xlsx和.xls格式）
+
+# 核心Excel处理库
+pandas>=2.0.0
+openpyxl>=3.0.0
+
+# .xls文件支持（旧版Excel格式）
+# 注意：xlrd 2.0+版本不支持.xls文件，必须使用1.2.0版本
+xlrd==1.2.0
+lxml>=4.9.0
+PyInstaller>=5.0.0
+tkinter-tooltip>=2.0.0

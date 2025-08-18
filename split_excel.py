@@ -3,10 +3,16 @@ import pandas as pd
 import os
 import argparse
 import sys
+import warnings
+from utils import ExcelFileProcessor
 
 # 设置输出编码为UTF-8
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
+
+# 忽略xlrd的警告信息
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', category=FutureWarning, module='xlrd')
 
 def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
     try:
@@ -22,10 +28,13 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
             raise ValueError(f"每个文件的行数必须大于0，当前值: {rows_per_file}")
         
         print(f"开始读取Excel文件: {input_file}")
-        # 读取Excel为DataFrame（读取首个工作表）
-        df = pd.read_excel(input_file, sheet_name=0, header=0)
-        print(f"成功读取文件，共{len(df)}行数据")
+        print(f"文件路径: {input_file}")
+        print(f"文件大小: {os.path.getsize(input_file)} 字节")
         
+        # 使用统一的嗅探式读取，自动兼容扩展名与实际容器不一致的.xls文件
+        df = ExcelFileProcessor.read_excel_with_optimization(input_file)
+        print(f"成功读取文件，共{len(df)}行数据")
+
     except FileNotFoundError as e:
         print(f"错误: {e}")
         sys.exit(1)
@@ -71,11 +80,16 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
             # 使用copy()避免视图警告，但对于大文件使用iloc切片更节省内存
             chunk = data_df.iloc[start_idx:end_idx].copy()
 
-            # 将分块写入文件
+            # 将分块写入文件（统一输出为.xlsx格式以确保兼容性）
             output_file = os.path.join(output_dir, f'{base_name}Split{i+1}.xlsx')
-            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                # DataFrame.to_excel 会自动写入表头（列名）。如果不需要表头，传header=False。
-                chunk.to_excel(writer, index=False, header=True if copy_headers else False)
+            try:
+                with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                    # DataFrame.to_excel 会自动写入表头（列名）。如果不需要表头，传header=False。
+                    chunk.to_excel(writer, index=False, header=True if copy_headers else False)
+            except Exception as e:
+                print(f"警告：保存文件 {output_file} 时出现问题，尝试备用方法: {e}")
+                # 备用保存方法
+                chunk.to_excel(output_file, index=False, header=True if copy_headers else False)
             
             print(f'已创建文件：{output_file}（行数：{len(chunk)}）')
             

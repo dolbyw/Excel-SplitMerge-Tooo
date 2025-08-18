@@ -43,6 +43,8 @@ interface ElectronAPI {
   // 配置管理
   getAppConfig: () => Promise<{
     defaultOutputDir: string;
+    defaultSplitOutputDir: string;
+    defaultMergeOutputDir: string;
     defaultRowsPerFile: number;
     defaultPreserveFormat: boolean;
     recentFiles: Array<{
@@ -53,6 +55,8 @@ interface ElectronAPI {
 
   saveAppConfig: (config: {
     defaultOutputDir: string;
+    defaultSplitOutputDir: string;
+    defaultMergeOutputDir: string;
     defaultRowsPerFile: number;
     defaultPreserveFormat: boolean;
     recentFiles: Array<{
@@ -60,6 +64,14 @@ interface ElectronAPI {
       lastUsed: string;
     }>;
   }) => Promise<{ success: boolean; error?: string }>;
+
+  // 默认输出目录管理
+  ensureDefaultOutputDirs: () => Promise<{
+    success: boolean;
+    splitDir?: string;
+    mergeDir?: string;
+    error?: string;
+  }>;
 }
 
 // 声明全局Window接口

@@ -82,8 +82,8 @@ const Split: React.FC = () => {
   const handleSelectOutputDir = async () => {
     try {
       const result = await window.electronAPI.selectDirectory();
-      if (result.success && result.directoryPath) {
-        form.setFieldValue("outputDir", result.directoryPath);
+      if (result.success && result.dirPath) {
+        form.setFieldValue("outputDir", result.dirPath);
       }
     } catch {
       message.error("选择目录失败");

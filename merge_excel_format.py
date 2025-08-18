@@ -3,8 +3,17 @@ import os
 import argparse
 import glob
 import sys
+import warnings
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
+
+# 设置输出编码为UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+# 忽略xlrd和openpyxl的警告信息
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', category=FutureWarning, module='xlrd')
 
 
 def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
@@ -74,8 +83,34 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
     for i, file in enumerate(excel_files):
         try:
             print(f"正在读取文件 ({i+1}/{total_files}): {file}")
-            wb = load_workbook(file)
-            ws = wb.active
+            
+            # 根据文件格式选择处理方式
+            if file.lower().endswith('.xls'):
+                print(f"  检测到.xls格式文件，先转换为.xlsx格式以保留格式")
+                try:
+                    # 对于.xls文件，先用pandas读取然后转换
+                    df_temp = pd.read_excel(file, engine='xlrd')
+                    # 创建临时.xlsx文件
+                    temp_xlsx = file.replace('.xls', '_temp_merge.xlsx')
+                    df_temp.to_excel(temp_xlsx, index=False, engine='openpyxl')
+                    # 使用临时文件进行格式保留处理
+                    wb = load_workbook(temp_xlsx)
+                    ws = wb.active
+                    # 标记需要清理的临时文件
+                    temp_files_to_clean = getattr(merge_excel_files, 'temp_files', [])
+                    temp_files_to_clean.append(temp_xlsx)
+                    merge_excel_files.temp_files = temp_files_to_clean
+                except Exception as e:
+                    print(f"  转换.xls文件时出错: {e}，跳过此文件")
+                    continue
+            else:
+                # 加载.xlsx工作簿
+                try:
+                    wb = load_workbook(file)
+                    ws = wb.active
+                except Exception as e:
+                    print(f"  加载文件失败: {e}，跳过此文件")
+                    continue
             
             # 检查文件是否为空
             if ws.max_row < 1:
@@ -115,14 +150,41 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             continue
     
     try:
+        # 确保输出文件为.xlsx格式（即使输入包含.xls文件）
+        if not output_file.lower().endswith('.xlsx'):
+            if output_file.lower().endswith('.xls'):
+                output_file = output_file[:-4] + '.xlsx'
+                print(f"输出文件格式已自动转换为.xlsx格式")
+            elif not output_file.lower().endswith(('.xlsx', '.xls')):
+                output_file += '.xlsx'
+                print(f"输出文件已自动添加.xlsx扩展名")
+        
         print(f"开始保存到文件: {output_file}")
-        # 保存合并后的文件
+        # 保存合并后的文件（openpyxl自动保存为.xlsx格式）
         merged_wb.save(output_file)
         total_rows = current_row - 1  # 减去表头行
         print(f"合并完成！共处理{len(excel_files)}个文件，合并{total_rows}行数据，输出文件：{output_file}")
         
+        # 清理临时文件
+        temp_files = getattr(merge_excel_files, 'temp_files', [])
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    print(f"已清理临时文件: {temp_file}")
+            except Exception as e:
+                print(f"清理临时文件失败 {temp_file}: {e}")
+        
     except Exception as e:
         print(f"错误: 合并或保存文件失败: {e}")
+        # 即使出错也要清理临时文件
+        temp_files = getattr(merge_excel_files, 'temp_files', [])
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
         sys.exit(1)
 
 if __name__ == '__main__':
