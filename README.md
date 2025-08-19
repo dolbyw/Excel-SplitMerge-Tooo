@@ -94,17 +94,33 @@
 
 ## 下载和使用
 
-### 📦 便携版下载
-由于GitHub文件大小限制，便携版应用请从以下方式获取：
-- 🔗 **Releases页面**：访问 [GitHub Releases](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases) 下载最新版本
-- 📱 **直接使用**：下载后解压即可使用，无需安装Python或其他依赖
-- 💾 **文件大小**：约110MB，包含完整的运行环境
+### 📦 便携版下载 (v1.0.0)
+
+#### 🎉 最新版本：v1.0.0
+- 🔗 **下载地址**：[GitHub Releases v1.0.0](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.0)
+- 📦 **文件名**：`Tooo-Portable-v1.0.0.zip`
+- 💾 **文件大小**：约110MB
+- 🖥️ **系统要求**：Windows 10/11 x64
+- ✨ **特点**：解压即用，无需安装Python或其他依赖
+
+#### 🆕 版本亮点
+- ✅ 修复导出Excel文件第一行序号问题
+- ✅ 优化大文件处理性能
+- ✅ 改善用户界面体验
+- ✅ 完善错误处理机制
 
 ### 🚀 快速开始
-1. 从Releases页面下载 `Tooo-Portable.zip`
-2. 解压到任意目录
-3. 双击 `Tooo.exe` 启动应用
-4. 选择拆分或合并功能开始使用
+1. 访问 [Releases页面](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.0)
+2. 下载 `Tooo-Portable-v1.0.0.zip`
+3. 解压到任意目录
+4. 双击 `Tooo.exe` 启动应用
+5. 选择拆分或合并功能开始使用
+
+### 📋 系统要求
+- **操作系统**：Windows 10/11 (x64)
+- **内存**：建议4GB以上
+- **磁盘空间**：200MB可用空间
+- **其他**：无需安装Python或其他依赖
 
 ## 开发和构建
 

@@ -23,6 +23,10 @@ out/
 *.deb
 *.rpm
 
+# Portable builds
+*.zip
+Tooo-Portable-*.zip
+
 # Build directories
 build/
 dist/
