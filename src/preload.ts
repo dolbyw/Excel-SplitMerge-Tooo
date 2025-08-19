@@ -13,6 +13,7 @@ interface ElectronAPI {
     outputDir: string;
     rowsPerFile: number;
     preserveFormat: boolean;
+    copyHeaders: boolean;
   }) => Promise<{
     success: boolean;
     message: string;
@@ -23,6 +24,7 @@ interface ElectronAPI {
     inputDir: string;
     outputFile: string;
     preserveFormat: boolean;
+    removeDuplicateHeaders: boolean;
   }) => Promise<{
     success: boolean;
     message: string;
@@ -87,11 +89,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     outputDir: string;
     rowsPerFile: number;
     preserveFormat: boolean;
+    copyHeaders: boolean;
   }) => ipcRenderer.invoke("split-excel", options),
   mergeExcel: (options: {
     inputDir: string;
     outputFile: string;
     preserveFormat: boolean;
+    removeDuplicateHeaders: boolean;
   }) => ipcRenderer.invoke("merge-excel", options),
 
   // 进度监听

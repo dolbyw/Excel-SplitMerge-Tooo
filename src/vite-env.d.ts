@@ -13,6 +13,7 @@ interface ElectronAPI {
     outputDir: string;
     rowsPerFile: number;
     preserveFormat: boolean;
+    copyHeaders: boolean;
   }) => Promise<{
     success: boolean;
     message: string;
@@ -23,6 +24,7 @@ interface ElectronAPI {
     inputDir: string;
     outputFile: string;
     preserveFormat: boolean;
+    removeDuplicateHeaders: boolean;
   }) => Promise<{
     success: boolean;
     message: string;

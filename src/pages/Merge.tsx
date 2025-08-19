@@ -32,18 +32,35 @@ const Merge: React.FC = () => {
     // 加载应用配置并创建默认目录
     const loadConfig = async () => {
       try {
-        // 确保默认输出目录存在
-        await window.electronAPI.ensureDefaultOutputDirs();
+        // 检查是否在Electron环境中
+        if (window.electronAPI) {
+          // 确保默认输出目录存在
+          await window.electronAPI.ensureDefaultOutputDirs();
 
-        const appConfig = await window.electronAPI.getAppConfig();
-        setConfig(appConfig);
-        form.setFieldsValue({
-          outputDir: appConfig.defaultMergeOutputDir, // 使用合并专用的默认路径
-          preserveFormat: appConfig.defaultPreserveFormat,
-          removeDuplicateHeaders: true, // 默认开启表头去重
-        });
+          const appConfig = await window.electronAPI.getAppConfig();
+          setConfig(appConfig);
+          form.setFieldsValue({
+            outputDir: appConfig.defaultMergeOutputDir, // 使用合并专用的默认路径
+            preserveFormat: appConfig.defaultPreserveFormat,
+            removeDuplicateHeaders: true, // 默认开启表头去重
+          });
+        } else {
+          // 开发环境下的默认配置
+          console.warn("开发环境：未检测到Electron API，使用默认配置");
+          form.setFieldsValue({
+            outputDir: "./output",
+            preserveFormat: false,
+            removeDuplicateHeaders: true,
+          });
+        }
       } catch (error) {
         console.error("加载配置失败:", error);
+        // 设置默认值以确保表单正常工作
+        form.setFieldsValue({
+          outputDir: "./output",
+          preserveFormat: false,
+          removeDuplicateHeaders: true,
+        });
       }
     };
 
@@ -283,9 +300,6 @@ const Merge: React.FC = () => {
               <Switch
                 checkedChildren="开启"
                 unCheckedChildren="关闭"
-                onChange={(checked) =>
-                  form.setFieldValue("removeDuplicateHeaders", checked)
-                }
               />
               <Text type="secondary" style={{ fontSize: "12px" }}>
                 若关闭，将保留各文件的表头行

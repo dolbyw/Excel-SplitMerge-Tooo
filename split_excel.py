@@ -48,24 +48,37 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         print(f"读取Excel文件失败: {e}")
         sys.exit(1)
 
-    # 拆分仅针对数据行，不包含表头
-    data_df = df.copy()
+    # 分割计算时自动排除源文件第一行表头（默认第一行为表头）
+    # 获取表头信息
+    header_row = df.iloc[0:1].copy() if len(df) > 0 else None
+    
+    # 数据行从第二行开始（排除表头）
+    data_df = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame(columns=df.columns)
 
-    # 计算分割文件数量
-    total_rows = len(data_df)
-    if total_rows == 0:
+    # 计算分割文件数量（基于数据行，不包含表头）
+    total_data_rows = len(data_df)
+    if total_data_rows == 0:
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f'{base_name}Split1.xlsx')
-        # 创建空的DataFrame，若需要复制表头则包含列名
-        empty_df = pd.DataFrame(columns=df.columns if copy_headers else None)
+        # 创建空的DataFrame
+        if copy_headers and header_row is not None:
+            # 如果需要复制表头且存在表头，只包含表头行
+            empty_df = header_row.copy()
+        else:
+            # 不复制表头或无表头，创建空DataFrame
+            empty_df = pd.DataFrame(columns=df.columns if len(df.columns) > 0 else None)
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-            empty_df.to_excel(writer, index=False)
-        print(f'已创建文件：{output_file}（行数：0）')
+            empty_df.to_excel(writer, index=False, header=copy_headers)
+        print(f'已创建文件：{output_file}（行数：{len(empty_df)}）')
         return
 
-    num_files = (total_rows + rows_per_file - 1) // rows_per_file
-    print(f"准备拆分为{num_files}个文件，每个文件最多{rows_per_file}行")
+    num_files = (total_data_rows + rows_per_file - 1) // rows_per_file
+    print(f"准备拆分为{num_files}个文件，每个文件最多{rows_per_file}行数据")
+    if copy_headers:
+        print("启用表头复制：每个分割文件将包含原始表头信息")
+    else:
+        print("关闭表头复制：所有分割文件均不包含表头信息")
 
     os.makedirs(output_dir, exist_ok=True)
     base_name = os.path.splitext(os.path.basename(input_file))[0]
@@ -73,27 +86,37 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
     for i in range(num_files):
         try:
             start_idx = i * rows_per_file
-            end_idx = min((i + 1) * rows_per_file, total_rows)
+            end_idx = min((i + 1) * rows_per_file, total_data_rows)
             
             print(f"正在处理第{i+1}/{num_files}个文件...")
             
-            # 使用copy()避免视图警告，但对于大文件使用iloc切片更节省内存
+            # 获取当前分块的数据
             chunk = data_df.iloc[start_idx:end_idx].copy()
 
             # 将分块写入文件（统一输出为.xlsx格式以确保兼容性）
             output_file = os.path.join(output_dir, f'{base_name}Split{i+1}.xlsx')
             try:
                 with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                    # DataFrame.to_excel 会自动写入表头（列名）。如果不需要表头，传header=False。
-                    chunk.to_excel(writer, index=False, header=True if copy_headers else False)
+                    if copy_headers:
+                        # 需要复制表头：使用原始列名作为表头，数据从chunk中获取
+                        chunk.to_excel(writer, index=False, header=True)
+                    else:
+                        # 不复制表头：只输出数据行，不包含列名
+                        chunk.to_excel(writer, index=False, header=False)
             except Exception as e:
                 print(f"警告：保存文件 {output_file} 时出现问题，尝试备用方法: {e}")
                 # 备用保存方法
-                chunk.to_excel(output_file, index=False, header=True if copy_headers else False)
+                if copy_headers:
+                    chunk.to_excel(output_file, index=False, header=True)
+                else:
+                    chunk.to_excel(output_file, index=False, header=False)
             
-            print(f'已创建文件：{output_file}（行数：{len(chunk)}）')
+            # 计算实际行数（数据行数，不包括表头）
+            actual_data_rows = len(chunk)
+            total_rows_in_file = actual_data_rows + (1 if copy_headers else 0)
+            print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}）')
             
-            # 显式删除chunk以释放内存
+            # 显式删除变量以释放内存
             del chunk
             
             # 计算并显示进度

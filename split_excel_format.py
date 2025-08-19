@@ -33,14 +33,14 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
         
         # 检测文件格式并选择合适的处理方式
         if input_file.lower().endswith('.xls'):
-            print("检测到.xls格式文件，使用pandas+xlrd引擎读取")
+            print("检测到.xls格式文件，使用统一的嗅探式读取")
             print(f"文件路径: {input_file}")
             print(f"文件大小: {os.path.getsize(input_file)} 字节")
             
-            # 对于.xls文件，先用pandas读取数据，然后用openpyxl创建新文件
+            # 使用统一的嗅探式读取，自动兼容HTML格式的.xls文件
             try:
-                print("尝试使用xlrd引擎读取.xls文件...")
-                df = pd.read_excel(input_file, sheet_name=0, engine='xlrd')
+                from utils import ExcelFileProcessor
+                df = ExcelFileProcessor.read_excel_with_optimization(input_file)
                 print(f"成功读取.xls文件，共{len(df)}行数据")
                 
                 # 将DataFrame转换为openpyxl工作簿以保持格式处理的一致性
@@ -57,28 +57,9 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
                 total_rows_with_header = len(df) + 1  # 数据行数 + 表头
                 
             except Exception as e:
-                print(f"使用xlrd引擎失败: {e}")
-                print("尝试使用默认方法读取.xls文件...")
-                try:
-                    df = pd.read_excel(input_file, sheet_name=0)
-                    print(f"成功使用默认方法读取.xls文件，共{len(df)}行数据")
-                    
-                    from openpyxl import Workbook
-                    from openpyxl.utils.dataframe import dataframe_to_rows
-                    
-                    wb = Workbook()
-                    ws = wb.active
-                    
-                    for r in dataframe_to_rows(df, index=False, header=True):
-                        ws.append(r)
-                    
-                    total_rows_with_header = len(df) + 1
-                    
-                except Exception as e2:
-                    print(f"所有方法都失败: {e2}")
-                    print("请确保已安装正确版本的xlrd库 (xlrd==1.2.0)")
-                    print("可以尝试运行: pip install xlrd==1.2.0")
-                    sys.exit(1)
+                print(f"读取.xls文件失败: {e}")
+                print("请检查文件格式是否正确")
+                sys.exit(1)
         else:
             # 使用openpyxl读取Excel文件(.xlsx格式)
             print("检测到.xlsx格式文件，使用openpyxl引擎")
@@ -94,13 +75,15 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
         
         print(f"文件总行数（含表头）：{total_rows_with_header}")
         
-        # 计算分割文件数量
+        # 分割计算时自动排除源文件第一行表头（默认第一行为表头）
+        # 数据行数始终为总行数减1（排除表头行）
+        data_rows = max(0, total_rows_with_header - 1)
+        
+        print(f"数据行数（排除表头）：{data_rows}")
         if copy_headers:
-            # 如果复制表头，数据行数 = 总行数 - 1
-            data_rows = max(0, total_rows_with_header - 1)
+            print("启用表头复制：每个分割文件将包含原始表头信息")
         else:
-            # 如果不复制表头，所有行都是数据行
-            data_rows = total_rows_with_header
+            print("关闭表头复制：所有分割文件均不包含表头信息")
         
         if data_rows == 0:
             print("警告：没有数据行需要拆分")
@@ -114,8 +97,16 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
             if copy_headers and total_rows_with_header >= 1:
                 for cell in ws[1]:
                     new_ws[cell.coordinate].value = cell.value
+                    # 复制格式
+                    new_ws[cell.coordinate].font = cell.font.copy()
+                    new_ws[cell.coordinate].border = cell.border.copy()
+                    new_ws[cell.coordinate].fill = cell.fill.copy()
+                    new_ws[cell.coordinate].number_format = cell.number_format
+                    new_ws[cell.coordinate].protection = cell.protection.copy()
+                    new_ws[cell.coordinate].alignment = cell.alignment.copy()
             new_wb.save(output_file)
-            print(f'已创建文件：{output_file}（行数：{0 if not copy_headers else 1}）')
+            file_rows = 1 if copy_headers and total_rows_with_header >= 1 else 0
+            print(f'已创建文件：{output_file}（总行数：{file_rows}）')
             return
         
     except FileNotFoundError as e:
@@ -145,38 +136,46 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
     # 分割并保存文件
     for i in range(num_files):
         try:
-            # 本文件的数据起止行（在源表中的行号，均为数据行，不包括表头）
-            data_start = 2 + i * rows_per_file  # 第2行是第一条数据
-            data_end = min(1 + (i + 1) * rows_per_file, total_rows_with_header)  # 结束行包含端
+            # 计算当前文件的数据行范围（基于数据行索引，从0开始）
+            data_start_idx = i * rows_per_file
+            data_end_idx = min((i + 1) * rows_per_file, data_rows)
+            
+            # 在源文件中的实际行号（数据从第2行开始，行号从1开始）
+            source_start_row = 2 + data_start_idx
+            source_end_row = 1 + data_end_idx
             
             print(f"正在处理第{i+1}/{num_files}个文件...")
+            print(f"数据范围：第{source_start_row}行到第{source_end_row}行")
             
             # 创建新工作簿
             new_wb = Workbook()
             new_ws = new_wb.active
         
-            # 复制表头（始终放在第1行）
+            current_write_row = 1
+            
+            # 复制表头（如果启用）
             if copy_headers:
                 for cell in ws[1]:
-                    tgt = new_ws.cell(row=1, column=cell.column, value=cell.value)
+                    tgt = new_ws.cell(row=current_write_row, column=cell.column, value=cell.value)
                     tgt.font = cell.font.copy()
                     tgt.border = cell.border.copy()
                     tgt.fill = cell.fill.copy()
                     tgt.number_format = cell.number_format
                     tgt.protection = cell.protection.copy()
                     tgt.alignment = cell.alignment.copy()
+                current_write_row = 2  # 表头占用第1行，数据从第2行开始
 
-            # 将数据行从第2行开始写入目标（如果复制了表头）
-            write_start_row = 2 if copy_headers else 1
-            for r_idx, row in enumerate(ws.iter_rows(min_row=data_start, max_row=data_end), start=0):
-                for cell in row:
-                    new_cell = new_ws.cell(row=write_start_row + r_idx, column=cell.column, value=cell.value)
-                    new_cell.font = cell.font.copy()
-                    new_cell.border = cell.border.copy()
-                    new_cell.fill = cell.fill.copy()
-                    new_cell.number_format = cell.number_format
-                    new_cell.protection = cell.protection.copy()
-                    new_cell.alignment = cell.alignment.copy()
+            # 复制数据行（如果有数据）
+            if data_end_idx > data_start_idx:
+                for r_idx, row in enumerate(ws.iter_rows(min_row=source_start_row, max_row=source_end_row), start=0):
+                    for cell in row:
+                        new_cell = new_ws.cell(row=current_write_row + r_idx, column=cell.column, value=cell.value)
+                        new_cell.font = cell.font.copy()
+                        new_cell.border = cell.border.copy()
+                        new_cell.fill = cell.fill.copy()
+                        new_cell.number_format = cell.number_format
+                        new_cell.protection = cell.protection.copy()
+                        new_cell.alignment = cell.alignment.copy()
             
             # 获取源文件名（不含扩展名）
             base_name = os.path.splitext(os.path.basename(input_file))[0]
@@ -185,9 +184,10 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
             output_file = os.path.join(output_dir, f'{base_name}Split{i+1}.xlsx')
             new_wb.save(output_file)
 
-            # 数据行数为 data_end - data_start + 1
-            data_count = max(0, data_end - data_start + 1)
-            print(f'已创建文件：{output_file}（行数：{data_count}）')
+            # 计算实际行数
+            actual_data_rows = data_end_idx - data_start_idx
+            total_file_rows = actual_data_rows + (1 if copy_headers else 0)
+            print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_file_rows}）')
             
             # 计算并显示进度
             progress = ((i + 1) / num_files) * 100

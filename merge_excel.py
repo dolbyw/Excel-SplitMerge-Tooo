@@ -102,35 +102,51 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         # 根据表头去重设置处理数据
         if remove_duplicate_headers:
             # 开启表头去重：只保留第一个文件的表头，其他文件跳过表头
+            print("启用表头去重：只保留第一个文件的表头")
             processed_data = []
             for i, df in enumerate(all_data):
                 if i == 0:
                     # 第一个文件：保留完整数据包括表头
                     processed_data.append(df)
+                    print(f"文件{i+1}：保留完整数据（{len(df)}行，包含表头）")
                 else:
                     # 其他文件：跳过表头行，只保留数据行
-                    if len(df) > 0:
+                    if len(df) > 1:  # 确保除了表头还有数据行
+                        # 跳过第一行（表头），只保留数据行
+                        data_only = df.iloc[1:].copy()
                         # 确保列名一致
-                        df.columns = all_data[0].columns
-                        processed_data.append(df)
-            merged_df = pd.concat(processed_data, ignore_index=True)
+                        data_only.columns = all_data[0].columns
+                        processed_data.append(data_only)
+                        print(f"文件{i+1}：跳过表头，保留数据行（{len(data_only)}行）")
+                    elif len(df) == 1:
+                        print(f"文件{i+1}：只有表头行，跳过整个文件")
+                    else:
+                        print(f"文件{i+1}：空文件，跳过")
+            merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         else:
             # 关闭表头去重：保留所有文件的原始内容，包括各自的表头行
+            print("关闭表头去重：保留所有文件的表头行")
             processed_data = []
             for i, df in enumerate(all_data):
                 if i == 0:
                     # 第一个文件：正常添加
                     processed_data.append(df)
+                    print(f"文件{i+1}：保留完整数据（{len(df)}行）")
                 else:
                     # 其他文件：将表头作为数据行添加
-                    # 创建表头行DataFrame
-                    header_row = pd.DataFrame([list(df.columns)], columns=all_data[0].columns)
-                    # 确保数据列名一致
-                    df.columns = all_data[0].columns
-                    # 先添加表头行，再添加数据
-                    processed_data.append(header_row)
-                    processed_data.append(df)
-            merged_df = pd.concat(processed_data, ignore_index=True)
+                    if len(df) > 0:
+                        # 创建表头行DataFrame
+                        header_row = pd.DataFrame([list(df.columns)], columns=all_data[0].columns)
+                        # 确保数据列名一致
+                        df_copy = df.copy()
+                        df_copy.columns = all_data[0].columns
+                        # 先添加表头行，再添加数据
+                        processed_data.append(header_row)
+                        processed_data.append(df_copy)
+                        print(f"文件{i+1}：添加表头行+数据行（共{len(df_copy)+1}行）")
+                    else:
+                        print(f"文件{i+1}：空文件，跳过")
+            merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         
         # 确保输出文件为.xlsx格式（即使输入包含.xls文件）
         if not output_file.lower().endswith('.xlsx'):

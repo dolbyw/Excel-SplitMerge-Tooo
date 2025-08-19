@@ -95,12 +95,19 @@ class ExcelFileProcessor:
                     # HTML格式的表格文件（常见于某些系统导出的.xls文件）
                     print("检测到 HTML 格式的表格文件，使用 pandas.read_html 读取")
                     try:
-                        # 使用read_html读取HTML表格
-                        tables = pd.read_html(file_path, encoding='utf-8')
+                        # 使用read_html读取HTML表格，header=0确保第一行作为列名
+                        tables = pd.read_html(file_path, encoding='utf-8', header=0)
                         if tables:
                             df = tables[0]  # 取第一个表格
-                            # 重置索引以避免产生序号列
+                            # 重置索引以避免产生序号列，并确保不包含索引列
                             df = df.reset_index(drop=True)
+                            # 检查并移除可能的序号列（通常是第一列且为连续数字）
+                            if len(df.columns) > 1 and df.iloc[:, 0].dtype in ['int64', 'float64']:
+                                # 检查第一列是否为连续序号
+                                first_col = df.iloc[:, 0]
+                                if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
+                                    df = df.iloc[:, 1:]  # 移除第一列序号
+                                    print("检测到并移除了HTML文件中的序号列")
                             print(f"成功从HTML中读取表格，共{len(df)}行数据")
                             return df
                         else:
@@ -137,11 +144,18 @@ class ExcelFileProcessor:
                     else:
                         try:
                             print("最后尝试使用 pandas.read_html 读取...")
-                            tables = pd.read_html(file_path, encoding='utf-8')
+                            tables = pd.read_html(file_path, encoding='utf-8', header=0)
                             if tables:
                                 df = tables[0]
-                                # 重置索引以避免产生序号列
+                                # 重置索引以避免产生序号列，并确保不包含索引列
                                 df = df.reset_index(drop=True)
+                                # 检查并移除可能的序号列（通常是第一列且为连续数字）
+                                if len(df.columns) > 1 and df.iloc[:, 0].dtype in ['int64', 'float64']:
+                                    # 检查第一列是否为连续序号
+                                    first_col = df.iloc[:, 0]
+                                    if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
+                                        df = df.iloc[:, 1:]  # 移除第一列序号
+                                        print("检测到并移除了HTML文件中的序号列")
                                 print(f"HTML读取成功，共{len(df)}行数据")
                             else:
                                 raise ValueError("HTML文件中未找到表格")
