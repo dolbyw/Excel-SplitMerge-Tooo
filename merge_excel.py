@@ -37,6 +37,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             raise ValueError(f"在目录 {input_dir} 中未找到Excel文件(.xlsx/.xls)")
         
         print(f"找到{len(excel_files)}个Excel文件")
+        for idx, file in enumerate(excel_files, 1):
+            print(f"  文件{idx}: {os.path.basename(file)}")
         
     except FileNotFoundError as e:
         print(f"错误: {e}")
@@ -111,15 +113,19 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                     print(f"文件{i+1}：保留完整数据（{len(df)}行，包含表头）")
                 else:
                     # 其他文件：跳过表头行，只保留数据行
-                    if len(df) > 1:  # 确保除了表头还有数据行
-                        # 跳过第一行（表头），只保留数据行
-                        data_only = df.iloc[1:].copy()
-                        # 确保列名一致
-                        data_only.columns = all_data[0].columns
-                        processed_data.append(data_only)
-                        print(f"文件{i+1}：跳过表头，保留数据行（{len(data_only)}行）")
-                    elif len(df) == 1:
-                        print(f"文件{i+1}：只有表头行，跳过整个文件")
+                    if len(df) > 0:  # 确保文件不为空
+                        # 创建一个新的DataFrame，包含除第一行外的所有数据
+                        # 但保持原始的列结构，将数据行作为数据添加
+                        if len(df) > 1:
+                            # 有数据行：跳过第一行（表头），保留数据行
+                            data_only = df.iloc[1:].copy()
+                            # 确保列名一致（使用第一个文件的列名）
+                            data_only.columns = all_data[0].columns
+                            processed_data.append(data_only)
+                            print(f"文件{i+1}：跳过表头，保留数据行（{len(data_only)}行）")
+                        else:
+                            # 只有表头行，没有数据行
+                            print(f"文件{i+1}：只有表头行，无数据行可添加")
                     else:
                         print(f"文件{i+1}：空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()

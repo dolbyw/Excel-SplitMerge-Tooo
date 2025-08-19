@@ -39,6 +39,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             raise ValueError(f"在目录 {input_dir} 中未找到Excel文件(.xlsx/.xls)")
         
         print(f"找到{len(excel_files)}个Excel文件")
+        for idx, file in enumerate(excel_files, 1):
+            print(f"  文件{idx}: {os.path.basename(file)}")
         
     except FileNotFoundError as e:
         print(f"错误: {e}")
@@ -103,11 +105,19 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                 # 根据表头去重设置处理数据
             if remove_duplicate_headers:
                 # 开启表头去重：跳过表头，只添加数据行
-                data_to_add = df_current.iloc[1:] if len(df_current) > 1 else pd.DataFrame()
+                if len(df_current) > 1:
+                    # 有数据行：跳过第一行（表头），保留数据行
+                    data_to_add = df_current.iloc[1:].copy()
+                    print(f"  启用表头去重：跳过表头，添加{len(data_to_add)}行数据")
+                else:
+                    # 只有表头行，没有数据行
+                    data_to_add = pd.DataFrame()
+                    print(f"  启用表头去重：只有表头行，无数据行可添加")
             else:
                 # 关闭表头去重：将表头作为数据行添加
                 header_row = pd.DataFrame([df_current.columns.tolist()], columns=df_current.columns)
                 data_to_add = pd.concat([header_row, df_current], ignore_index=True)
+                print(f"  关闭表头去重：添加表头行+数据行，共{len(data_to_add)}行")
             
             # 将数据写入合并工作表
             rows_copied = 0

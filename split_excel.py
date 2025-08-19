@@ -51,9 +51,11 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
     # 分割计算时自动排除源文件第一行表头（默认第一行为表头）
     # 获取表头信息
     header_row = df.iloc[0:1].copy() if len(df) > 0 else None
+    print(f"表头行数：{1 if header_row is not None and len(header_row) > 0 else 0}")
     
     # 数据行从第二行开始（排除表头）
     data_df = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame(columns=df.columns)
+    print(f"数据行数（排除表头）：{len(data_df)}")
 
     # 计算分割文件数量（基于数据行，不包含表头）
     total_data_rows = len(data_df)
