@@ -99,6 +99,8 @@ class ExcelFileProcessor:
                         tables = pd.read_html(file_path, encoding='utf-8')
                         if tables:
                             df = tables[0]  # 取第一个表格
+                            # 重置索引以避免产生序号列
+                            df = df.reset_index(drop=True)
                             print(f"成功从HTML中读取表格，共{len(df)}行数据")
                             return df
                         else:
@@ -138,6 +140,8 @@ class ExcelFileProcessor:
                             tables = pd.read_html(file_path, encoding='utf-8')
                             if tables:
                                 df = tables[0]
+                                # 重置索引以避免产生序号列
+                                df = df.reset_index(drop=True)
                                 print(f"HTML读取成功，共{len(df)}行数据")
                             else:
                                 raise ValueError("HTML文件中未找到表格")
