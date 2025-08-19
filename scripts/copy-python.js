@@ -12,7 +12,8 @@ const pythonFiles = [
   'split_excel.py',
   'merge_excel.py',
   'split_excel_format.py',
-  'merge_excel_format.py'
+  'merge_excel_format.py',
+  'utils.py'
 ];
 
 // 需要复制的其他文件

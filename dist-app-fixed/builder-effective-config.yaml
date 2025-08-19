@@ -1,0 +1,25 @@
+directories:
+  output: dist-app-fixed
+  buildResources: build
+appId: com.excel.splitmergeTool
+productName: Tooo
+forceCodeSigning: false
+files:
+  - filter:
+      - dist/**/*
+      - package.json
+extraResources:
+  - filter:
+      - merge_excel.py
+      - merge_excel_format.py
+      - split_excel.py
+      - split_excel_format.py
+      - utils.py
+win:
+  target: portable
+  icon: public/tooo-icon.svg
+  sign: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+electronVersion: 33.4.11

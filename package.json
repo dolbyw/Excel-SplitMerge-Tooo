@@ -14,7 +14,7 @@
     "electron:dev": "concurrently \"npm run build:main && npm run build:preload\" \"npm run dev:renderer\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "electron:pack": "npm run build && electron-builder",
     "electron:dist": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish=never",
-    "electron:packager": "npm run build && electron-packager . Tooo --platform=win32 --arch=x64 --out=dist-packager-fixed --overwrite --ignore=\"^/node_modules\" --ignore=\"^/src\" --ignore=\"\\.git\" --ignore=\"^/\\.trae\" --ignore=\"^/api\" --ignore=\"^/\\.vercel\"",
+    "electron:packager": "npm run build && electron-packager . Tooo --platform=win32 --arch=x64 --out=dist-packager-fixed --overwrite --ignore=node_modules --ignore=src --ignore=.git --ignore=.trae --ignore=api --ignore=.vercel --ignore=dist-app-fixed --ignore=dist-packager-fixed",
     "lint": "eslint .",
     "check": "tsc --noEmit"
   },
@@ -60,6 +60,9 @@
       "output": "dist-app-fixed"
     },
     "forceCodeSigning": false,
+    "electronVersion": "33.2.0",
+    "compression": "normal",
+    "nodeGypRebuild": false,
     "files": [
       "dist/**/*",
       "package.json"
@@ -68,12 +71,15 @@
       "merge_excel.py",
       "merge_excel_format.py",
       "split_excel.py",
-      "split_excel_format.py"
+      "split_excel_format.py",
+      "utils.py"
     ],
     "win": {
-      "target": "portable",
-      "icon": "public/tooo-icon.svg",
-      "sign": false
+      "target": {
+        "target": "portable",
+        "arch": ["x64"]
+      },
+      "icon": "public/tooo-icon.svg"
     },
     "nsis": {
       "oneClick": false,
