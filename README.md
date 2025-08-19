@@ -92,6 +92,20 @@
 └── dist-packager-*/       # 打包后的应用
 ```
 
+## 下载和使用
+
+### 📦 便携版下载
+由于GitHub文件大小限制，便携版应用请从以下方式获取：
+- 🔗 **Releases页面**：访问 [GitHub Releases](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases) 下载最新版本
+- 📱 **直接使用**：下载后解压即可使用，无需安装Python或其他依赖
+- 💾 **文件大小**：约110MB，包含完整的运行环境
+
+### 🚀 快速开始
+1. 从Releases页面下载 `Tooo-Portable.zip`
+2. 解压到任意目录
+3. 双击 `Tooo.exe` 启动应用
+4. 选择拆分或合并功能开始使用
+
 ## 开发和构建
 
 ### 开发环境
