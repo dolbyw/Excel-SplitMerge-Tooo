@@ -1,6 +1,6 @@
 # Excel 拆分合并工具 (Tooo)
 
-一个基于 Electron + React + TypeScript 开发的现代化桌面应用程序，专为高效处理 Excel 文件的拆分和合并操作而设计。
+一个基于 Electron + React + TypeScript + Python 开发的现代化桌面应用程序，专为高效处理 Excel 文件的拆分和合并操作而设计。
 
 ## 功能特性
 
@@ -94,25 +94,24 @@
 
 ## 下载和使用
 
-### 📦 便携版下载 (v1.0.2)
+### 📦 便携版下载
 
-#### 🎉 最新版本：v1.0.3
-- 🔗 **下载地址**：[GitHub Releases v1.0.3](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.3)
-- 📦 **文件名**：`Tooo-Portable-v1.0.3.zip`
+#### 🎉 最新版本：v1.0.4
+- 🔗 **下载地址**：[GitHub Releases v1.0.4](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.4)
+- 📦 **文件名**：`Tooo-Portable-v1.0.4.zip`
 - 💾 **文件大小**：约130MB
 - 🖥️ **系统要求**：Windows 10/11 x64
 - ✨ **特点**：解压即用，无需安装Python或其他依赖
 
-#### 🆕 版本亮点 (v1.0.3)
-- 🔧 **重要修复**：修复合并功能中源文件最后一行丢失的严重问题
-- 📊 **日志增强**：大幅改进运行信息框的日志记录系统
-- 🔍 **数据完整性**：添加详细的数据处理统计和验证功能
-- 📦 **包管理优化**：迁移到pnpm，提升中国大陆开发体验
-- 🚀 **性能提升**：优化数据处理逻辑，增强内存使用效率
+#### 🆕 版本亮点 (v1.0.4)
+- 🔧 **重要修复**：修复HTML格式xls文件读取行数不正确的问题
+- 📊 **数据完整性**：确保所有行数据都能正确读取和处理
+- 🔍 **兼容性增强**：改进对各种Excel文件格式的支持
+- 🚀 **稳定性提升**：全面检查和修复潜在的数据处理问题
 
 ### 🚀 快速开始
-1. 访问 [Releases页面](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.3)
-2. 下载 `Tooo-Portable-v1.0.3.zip`
+1. 访问 [Releases页面](https://github.com/dolbyw/Excel-SplitMerge-Tooo/releases/tag/v1.0.4)
+2. 下载 `Tooo-Portable-v1.0.4.zip`
 3. 解压到任意目录
 4. 双击 `Tooo.exe` 启动应用
 5. 选择拆分或合并功能开始使用

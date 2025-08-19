@@ -48,14 +48,32 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         print(f"读取Excel文件失败: {e}")
         sys.exit(1)
 
-    # 分割计算时自动排除源文件第一行表头（默认第一行为表头）
-    # 获取表头信息
-    header_row = df.iloc[0:1].copy() if len(df) > 0 else None
-    print(f"表头行数：{1 if header_row is not None and len(header_row) > 0 else 0}")
+    # 对于HTML格式文件，所有行都是数据行（包括表头），不需要跳过第一行
+    # 对于其他格式文件，pandas已经将第一行作为列名处理，DataFrame中都是数据行
+    # 因此，我们直接使用整个DataFrame作为数据
+    print(f"文件总行数：{len(df)}行")
     
-    # 数据行从第二行开始（排除表头）
-    data_df = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame(columns=df.columns)
-    print(f"数据行数（排除表头）：{len(data_df)}")
+    # 检查是否为HTML格式文件（通过文件内容判断）
+    is_html_format = False
+    try:
+        with open(input_file, 'rb') as f:
+            magic = f.read(50)
+            if b'<html' in magic.lower() or b'<table' in magic.lower():
+                is_html_format = True
+    except:
+        pass
+    
+    if is_html_format:
+        # HTML格式：第一行是表头，其余是数据行
+        header_row = df.iloc[0:1].copy() if len(df) > 0 else None
+        data_df = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame(columns=df.columns)
+        print(f"HTML格式文件 - 表头行数：{1 if header_row is not None and len(header_row) > 0 else 0}")
+        print(f"HTML格式文件 - 数据行数（排除表头）：{len(data_df)}")
+    else:
+        # 其他格式：pandas已处理表头，所有DataFrame行都是数据行
+        header_row = None  # 没有单独的表头行
+        data_df = df.copy()  # 所有行都是数据行
+        print(f"标准格式文件 - 数据行数：{len(data_df)}行（pandas已将原文件表头作为列名处理）")
 
     # 计算分割文件数量（基于数据行，不包含表头）
     total_data_rows = len(data_df)
@@ -64,11 +82,18 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         base_name = os.path.splitext(os.path.basename(input_file))[0]
         output_file = os.path.join(output_dir, f'{base_name}Split1.xlsx')
         # 创建空的DataFrame
-        if copy_headers and header_row is not None:
-            # 如果需要复制表头且存在表头，只包含表头行
-            empty_df = header_row.copy()
+        if copy_headers:
+            if is_html_format and header_row is not None:
+                # HTML格式且需要复制表头，只包含表头行
+                empty_df = header_row.copy()
+            elif not is_html_format:
+                # 标准格式，创建带列名的空DataFrame
+                empty_df = pd.DataFrame(columns=df.columns if len(df.columns) > 0 else None)
+            else:
+                # HTML格式但无表头，创建空DataFrame
+                empty_df = pd.DataFrame(columns=df.columns if len(df.columns) > 0 else None)
         else:
-            # 不复制表头或无表头，创建空DataFrame
+            # 不复制表头，创建空DataFrame
             empty_df = pd.DataFrame(columns=df.columns if len(df.columns) > 0 else None)
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             empty_df.to_excel(writer, index=False, header=copy_headers)
@@ -100,8 +125,13 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
             try:
                 with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
                     if copy_headers:
-                        # 需要复制表头：使用原始列名作为表头，数据从chunk中获取
-                        chunk.to_excel(writer, index=False, header=True)
+                        if is_html_format and header_row is not None:
+                            # HTML格式：先写入表头行，再写入数据
+                            combined_df = pd.concat([header_row, chunk], ignore_index=True)
+                            combined_df.to_excel(writer, index=False, header=False)
+                        else:
+                            # 标准格式：使用列名作为表头
+                            chunk.to_excel(writer, index=False, header=True)
                     else:
                         # 不复制表头：只输出数据行，不包含列名
                         chunk.to_excel(writer, index=False, header=False)
@@ -109,14 +139,30 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
                 print(f"警告：保存文件 {output_file} 时出现问题，尝试备用方法: {e}")
                 # 备用保存方法
                 if copy_headers:
-                    chunk.to_excel(output_file, index=False, header=True)
+                    if is_html_format and header_row is not None:
+                        # HTML格式：先写入表头行，再写入数据
+                        combined_df = pd.concat([header_row, chunk], ignore_index=True)
+                        combined_df.to_excel(output_file, index=False, header=False)
+                    else:
+                        # 标准格式：使用列名作为表头
+                        chunk.to_excel(output_file, index=False, header=True)
                 else:
                     chunk.to_excel(output_file, index=False, header=False)
             
-            # 计算实际行数（数据行数，不包括表头）
+            # 计算实际行数
             actual_data_rows = len(chunk)
-            total_rows_in_file = actual_data_rows + (1 if copy_headers else 0)
-            print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}）')
+            if copy_headers and is_html_format and header_row is not None:
+                # HTML格式且复制表头：总行数 = 表头行数 + 数据行数
+                total_rows_in_file = actual_data_rows + 1
+                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}，包含表头）')
+            elif copy_headers and not is_html_format:
+                # 标准格式且复制表头：pandas会自动添加列名行
+                total_rows_in_file = actual_data_rows + 1
+                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}，包含列名表头）')
+            else:
+                # 不复制表头：只有数据行
+                total_rows_in_file = actual_data_rows
+                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}）')
             
             # 显式删除变量以释放内存
             del chunk

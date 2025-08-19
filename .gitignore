@@ -14,6 +14,7 @@ dist-ssr
 
 # Packaged applications
 dist-packager-*/
+dist-packager-fixed/
 dist-app-*/
 dist-app-fixed/
 out/

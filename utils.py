@@ -95,8 +95,8 @@ class ExcelFileProcessor:
                     # HTML格式的表格文件（常见于某些系统导出的.xls文件）
                     print("检测到 HTML 格式的表格文件，使用 pandas.read_html 读取")
                     try:
-                        # 使用read_html读取HTML表格，header=0确保第一行作为列名
-                        tables = pd.read_html(file_path, encoding='utf-8', header=0)
+                        # 使用read_html读取HTML表格，header=None确保所有行都作为数据读取
+                        tables = pd.read_html(file_path, encoding='utf-8', header=None)
                         if tables:
                             df = tables[0]  # 取第一个表格
                             # 重置索引以避免产生序号列，并确保不包含索引列
@@ -144,7 +144,7 @@ class ExcelFileProcessor:
                     else:
                         try:
                             print("最后尝试使用 pandas.read_html 读取...")
-                            tables = pd.read_html(file_path, encoding='utf-8', header=0)
+                            tables = pd.read_html(file_path, encoding='utf-8', header=None)
                             if tables:
                                 df = tables[0]
                                 # 重置索引以避免产生序号列，并确保不包含索引列
