@@ -71,7 +71,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         for r in dataframe_to_rows(first_df, index=False, header=True):
             merged_ws.append(r)
             rows_written += 1
-        print(f"  写入行数: {rows_written}行（表头1行 + 数据{len(first_df)}行）")
+        print(f"  写入行数: {rows_written}行（列名表头1行 + DataFrame数据{len(first_df)}行）")
+        print(f"  说明: DataFrame有{len(first_df)}行是因为pandas已将原文件第1行作为列名处理")
         
         # 设置默认列宽
         for col_num in range(1, len(first_df.columns) + 1):
@@ -84,8 +85,11 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         print(f"处理第一个文件失败: {e}")
         sys.exit(1)
     
-    # 当前行号（第一个文件已经写入，包含表头行+数据行）
-    current_row = len(first_df) + 2  # 表头行(1) + 数据行数(len(first_df)) + 下一行位置(1)
+    # 当前行号（第一个文件已经写入）
+    # dataframe_to_rows(first_df, header=True) 输出: 1行列名表头 + len(first_df)行数据 = len(first_df)+1行
+    # 所以下一行的位置是: len(first_df) + 1 + 1 = len(first_df) + 2
+    current_row = rows_written + 1  # 已写入行数 + 下一行位置
+    print(f"下一个文件数据将从第{current_row}行开始写入")
     
     # 合并剩余文件的数据
     total_files = len(excel_files)
@@ -104,31 +108,33 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                     print(f"警告：文件 {os.path.basename(file)} 为空，跳过")
                     continue
                 print(f"文件详细信息: {os.path.basename(file)}")
-                print(f"  原始行数: {len(df_current)}行（包含表头）")
+                print(f"  DataFrame行数: {len(df_current)}行（pandas已将原文件第1行作为列名）")
                 print(f"  列数: {len(df_current.columns)}列")
+                print(f"  说明: 原文件有{len(df_current)+1}行，第1行被pandas作为列名处理")
             except Exception as e:
                 print(f"  读取文件失败: {e}，跳过此文件")
                 continue
         
                 # 根据表头去重设置处理数据
             if remove_duplicate_headers:
-                # 开启表头去重：跳过表头，只添加数据行
-                if len(df_current) > 1:
-                    # 有数据行：跳过第一行（表头），保留数据行
-                    data_to_add = df_current.iloc[1:].copy()
-                    print(f"  启用表头去重：跳过表头行，保留数据行")
-                    print(f"  处理结果: 添加{len(data_to_add)}行数据（原{len(df_current)}行 - 1行表头）")
+                # 开启表头去重：只添加数据行，不添加列名
+                # 因为pandas已将原文件第1行作为列名，DataFrame中的所有行都是纯数据行
+                # 所以我们应该保留DataFrame的所有行
+                if len(df_current) > 0:
+                    data_to_add = df_current.copy()  # 保留所有数据行
+                    print(f"  启用表头去重：保留所有DataFrame数据行（pandas已处理表头）")
+                    print(f"  处理结果: 添加{len(data_to_add)}行数据（原文件{len(df_current)+1}行 - 1行表头 = {len(df_current)}行数据）")
                 else:
-                    # 只有表头行，没有数据行
+                    # DataFrame为空
                     data_to_add = pd.DataFrame()
-                    print(f"  启用表头去重：只有表头行，无数据行可添加")
-                    print(f"  处理结果: 跳过整个文件（仅包含表头）")
+                    print(f"  启用表头去重：DataFrame为空，无数据可添加")
+                    print(f"  处理结果: 跳过整个文件（原文件只有表头行）")
             else:
-                # 关闭表头去重：将表头作为数据行添加
+                # 关闭表头去重：将列名作为数据行添加，然后添加所有DataFrame数据
                 header_row = pd.DataFrame([df_current.columns.tolist()], columns=df_current.columns)
                 data_to_add = pd.concat([header_row, df_current], ignore_index=True)
-                print(f"  关闭表头去重：保留表头行作为数据行")
-                print(f"  处理结果: 添加{len(data_to_add)}行（1行表头 + {len(df_current)}行数据）")
+                print(f"  关闭表头去重：添加列名作为数据行，然后添加所有DataFrame数据")
+                print(f"  处理结果: 添加{len(data_to_add)}行（1行列名 + {len(df_current)}行DataFrame数据）")
             
             # 将数据写入合并工作表
             rows_copied = 0

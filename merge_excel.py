@@ -82,8 +82,9 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             
             all_data.append(df)
             print(f"文件详细信息: {os.path.basename(file_path)}")
-            print(f"  原始行数: {len(df)}行（包含表头）")
+            print(f"  DataFrame行数: {len(df)}行（pandas已将原文件第1行作为列名）")
             print(f"  列数: {len(df.columns)}列")
+            print(f"  说明: 原文件有{len(df)+1}行，第1行被pandas作为列名处理")
             
             # 显示进度
             progress = (i / total_files) * 100
@@ -116,21 +117,16 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                     print(f"文件{i+1}处理: 保留完整数据")
                     print(f"  添加行数: {len(df)}行（包含表头）")
                 else:
-                    # 其他文件：跳过表头行，只保留数据行
+                    # 其他文件：只保留数据行（pandas已处理表头）
                     if len(df) > 0:  # 确保文件不为空
-                        # 创建一个新的DataFrame，包含除第一行外的所有数据
-                        # 但保持原始的列结构，将数据行作为数据添加
-                        if len(df) > 1:
-                            # 有数据行：跳过第一行（表头），保留数据行
-                            data_only = df.iloc[1:].copy()
-                            # 确保列名一致（使用第一个文件的列名）
-                            data_only.columns = all_data[0].columns
-                            processed_data.append(data_only)
-                            print(f"文件{i+1}处理: 启用表头去重")
-                            print(f"  跳过表头行，添加数据行: {len(data_only)}行（原{len(df)}行 - 1行表头）")
-                        else:
-                            # 只有表头行，没有数据行
-                            print(f"文件{i+1}处理: 只有表头行，跳过整个文件")
+                        # DataFrame中的所有行都是数据行（pandas已将原文件第1行作为列名）
+                        # 在表头去重模式下，保留所有DataFrame行
+                        data_only = df.copy()
+                        # 确保列名一致（使用第一个文件的列名）
+                        data_only.columns = all_data[0].columns
+                        processed_data.append(data_only)
+                        print(f"文件{i+1}处理: 启用表头去重")
+                        print(f"  保留所有数据行: {len(data_only)}行（原文件{len(df)+1}行 - 1行表头 = {len(df)}行数据）")
                     else:
                         print(f"文件{i+1}处理: 空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
