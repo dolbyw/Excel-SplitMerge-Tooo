@@ -14,12 +14,49 @@ dist-ssr
 
 # Packaged applications
 dist-packager-*/
+dist-app-*/
+dist-app-fixed/
 out/
 *.exe
 *.dmg
 *.AppImage
 *.deb
 *.rpm
+
+# Build directories
+build/
+dist/
+dist-*/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # Editor directories and files
 .vscode/*
