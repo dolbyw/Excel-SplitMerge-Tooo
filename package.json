@@ -1,7 +1,7 @@
 {
   "name": "excel-split-merge-tool",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist/main.js",
   "homepage": "./",
   "scripts": {
@@ -14,7 +14,7 @@
     "electron:dev": "concurrently \"pnpm run build:main && pnpm run build:preload\" \"pnpm run dev:renderer\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "electron:pack": "pnpm run build && electron-builder",
     "electron:dist": "pnpm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish=never",
-    "electron:packager": "pnpm run build && electron-packager . Tooo --platform=win32 --arch=x64 --out=dist-packager-fixed --overwrite --ignore=node_modules --ignore=src --ignore=.git --ignore=.trae --ignore=api --ignore=.vercel --ignore=dist-app-fixed --ignore=dist-packager-fixed",
+    "electron:packager": "pnpm run build && electron-packager . Tooo --platform=win32 --arch=x64 --out=dist-packager-fixed --overwrite --ignore=node_modules --ignore=src --ignore=.git --ignore=.trae --ignore=api --ignore=.vercel --ignore=dist-app-fixed --ignore=dist-packager-fixed --ignore=pnpm-lock.yaml --ignore=.npmrc --ignore=eslint.config.js --ignore=tsconfig.json --ignore=tsconfig.main.json --ignore=vite.config.ts --ignore=vite.preload.config.ts --ignore=postcss.config.js --ignore=tailwind.config.js --ignore=README.md --ignore=RELEASE_NOTES.md --ignore=requirements.txt --ignore=scripts --ignore=\\.zip$ --ignore=\\.exe$ --locale=zh-CN,en-US",
     "lint": "eslint .",
     "check": "tsc --noEmit"
   },

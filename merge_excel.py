@@ -81,11 +81,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                         pass
             
             all_data.append(df)
-            print(f"成功读取文件: {file_path}，行数: {len(df)}")
+            print(f"文件详细信息: {os.path.basename(file_path)}")
+            print(f"  原始行数: {len(df)}行（包含表头）")
+            print(f"  列数: {len(df.columns)}列")
             
             # 显示进度
             progress = (i / total_files) * 100
             print(f"读取进度：{progress:.1f}% ({i}/{total_files})")
+            print(f"---")
             
         except pd.errors.EmptyDataError:
             print(f"警告：文件 {file_path} 为空或无有效数据，跳过")
@@ -110,7 +113,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                 if i == 0:
                     # 第一个文件：保留完整数据包括表头
                     processed_data.append(df)
-                    print(f"文件{i+1}：保留完整数据（{len(df)}行，包含表头）")
+                    print(f"文件{i+1}处理: 保留完整数据")
+                    print(f"  添加行数: {len(df)}行（包含表头）")
                 else:
                     # 其他文件：跳过表头行，只保留数据行
                     if len(df) > 0:  # 确保文件不为空
@@ -122,12 +126,13 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                             # 确保列名一致（使用第一个文件的列名）
                             data_only.columns = all_data[0].columns
                             processed_data.append(data_only)
-                            print(f"文件{i+1}：跳过表头，保留数据行（{len(data_only)}行）")
+                            print(f"文件{i+1}处理: 启用表头去重")
+                            print(f"  跳过表头行，添加数据行: {len(data_only)}行（原{len(df)}行 - 1行表头）")
                         else:
                             # 只有表头行，没有数据行
-                            print(f"文件{i+1}：只有表头行，无数据行可添加")
+                            print(f"文件{i+1}处理: 只有表头行，跳过整个文件")
                     else:
-                        print(f"文件{i+1}：空文件，跳过")
+                        print(f"文件{i+1}处理: 空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         else:
             # 关闭表头去重：保留所有文件的原始内容，包括各自的表头行
@@ -137,7 +142,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                 if i == 0:
                     # 第一个文件：正常添加
                     processed_data.append(df)
-                    print(f"文件{i+1}：保留完整数据（{len(df)}行）")
+                    print(f"文件{i+1}处理: 保留完整数据")
+                    print(f"  添加行数: {len(df)}行（包含表头）")
                 else:
                     # 其他文件：将表头作为数据行添加
                     if len(df) > 0:
@@ -149,9 +155,10 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                         # 先添加表头行，再添加数据
                         processed_data.append(header_row)
                         processed_data.append(df_copy)
-                        print(f"文件{i+1}：添加表头行+数据行（共{len(df_copy)+1}行）")
+                        print(f"文件{i+1}处理: 关闭表头去重")
+                        print(f"  添加表头行+数据行: {len(df_copy)+1}行（1行表头 + {len(df_copy)}行数据）")
                     else:
-                        print(f"文件{i+1}：空文件，跳过")
+                        print(f"文件{i+1}处理: 空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         
         # 确保输出文件为.xlsx格式（即使输入包含.xls文件）
@@ -172,7 +179,13 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             print(f"警告：使用openpyxl引擎保存失败，尝试默认方法: {e}")
             merged_df.to_excel(output_file, index=False)
         
-        print(f"合并完成！共处理{len(excel_files)}个文件，合并{len(merged_df)}行数据，输出文件：{output_file}")
+        print(f"="*60)
+        print(f"合并完成！数据完整性统计:")
+        print(f"  处理文件数: {len(excel_files)}个")
+        print(f"  合并总行数: {len(merged_df)}行（包含表头和数据）")
+        print(f"  输出文件: {os.path.basename(output_file)}")
+        print(f"  文件大小: {os.path.getsize(output_file)} 字节")
+        print(f"="*60)
         
     except Exception as e:
         print(f"错误: 合并或保存文件失败: {e}")

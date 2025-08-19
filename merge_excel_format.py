@@ -61,11 +61,17 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         # 使用统一的嗅探式读取处理第一个文件
         from utils import ExcelFileProcessor
         first_df = ExcelFileProcessor.read_excel_with_optimization(excel_files[0])
+        print(f"第一个文件详细信息: {os.path.basename(excel_files[0])}")
+        print(f"  原始行数: {len(first_df)}行（包含表头）")
+        print(f"  列数: {len(first_df.columns)}列")
         
         # 创建模板工作表并写入第一个文件的数据
         from openpyxl.utils.dataframe import dataframe_to_rows
+        rows_written = 0
         for r in dataframe_to_rows(first_df, index=False, header=True):
             merged_ws.append(r)
+            rows_written += 1
+        print(f"  写入行数: {rows_written}行（表头1行 + 数据{len(first_df)}行）")
         
         # 设置默认列宽
         for col_num in range(1, len(first_df.columns) + 1):
@@ -78,8 +84,8 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         print(f"处理第一个文件失败: {e}")
         sys.exit(1)
     
-    # 当前行号（第一个文件已经写入）
-    current_row = len(first_df) + 1  # 从第一个文件数据后开始
+    # 当前行号（第一个文件已经写入，包含表头行+数据行）
+    current_row = len(first_df) + 2  # 表头行(1) + 数据行数(len(first_df)) + 下一行位置(1)
     
     # 合并剩余文件的数据
     total_files = len(excel_files)
@@ -95,9 +101,11 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             try:
                 df_current = ExcelFileProcessor.read_excel_with_optimization(file)
                 if df_current.empty:
-                    print(f"警告：文件 {file} 为空，跳过")
+                    print(f"警告：文件 {os.path.basename(file)} 为空，跳过")
                     continue
-                print(f"  成功读取文件，共{len(df_current)}行数据")
+                print(f"文件详细信息: {os.path.basename(file)}")
+                print(f"  原始行数: {len(df_current)}行（包含表头）")
+                print(f"  列数: {len(df_current.columns)}列")
             except Exception as e:
                 print(f"  读取文件失败: {e}，跳过此文件")
                 continue
@@ -108,16 +116,19 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                 if len(df_current) > 1:
                     # 有数据行：跳过第一行（表头），保留数据行
                     data_to_add = df_current.iloc[1:].copy()
-                    print(f"  启用表头去重：跳过表头，添加{len(data_to_add)}行数据")
+                    print(f"  启用表头去重：跳过表头行，保留数据行")
+                    print(f"  处理结果: 添加{len(data_to_add)}行数据（原{len(df_current)}行 - 1行表头）")
                 else:
                     # 只有表头行，没有数据行
                     data_to_add = pd.DataFrame()
                     print(f"  启用表头去重：只有表头行，无数据行可添加")
+                    print(f"  处理结果: 跳过整个文件（仅包含表头）")
             else:
                 # 关闭表头去重：将表头作为数据行添加
                 header_row = pd.DataFrame([df_current.columns.tolist()], columns=df_current.columns)
                 data_to_add = pd.concat([header_row, df_current], ignore_index=True)
-                print(f"  关闭表头去重：添加表头行+数据行，共{len(data_to_add)}行")
+                print(f"  关闭表头去重：保留表头行作为数据行")
+                print(f"  处理结果: 添加{len(data_to_add)}行（1行表头 + {len(df_current)}行数据）")
             
             # 将数据写入合并工作表
             rows_copied = 0
@@ -128,11 +139,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                     current_row += 1
                     rows_copied += 1
             
-            print(f"成功处理文件: {file}，添加行数: {rows_copied}")
+            print(f"成功处理文件: {os.path.basename(file)}")
+            print(f"  实际写入行数: {rows_copied}行")
+            print(f"  当前总行数: {current_row - 1}行")
             
             # 显示进度
             progress = ((i + 1) / total_files) * 100
-            print(f"读取进度：{progress:.1f}% ({i+1}/{total_files})")
+            print(f"合并进度：{progress:.1f}% ({i+1}/{total_files})")
+            print(f"---")
             
         except Exception as e:
             print(f"错误：读取文件 {file} 失败: {e}")
@@ -151,8 +165,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         print(f"开始保存到文件: {output_file}")
         # 保存合并后的文件（openpyxl自动保存为.xlsx格式）
         merged_wb.save(output_file)
-        total_rows = current_row - 1  # 减去表头行
-        print(f"合并完成！共处理{len(excel_files)}个文件，合并{total_rows}行数据，输出文件：{output_file}")
+        total_rows = current_row - 1
+        print(f"="*60)
+        print(f"合并完成！数据完整性统计:")
+        print(f"  处理文件数: {len(excel_files)}个")
+        print(f"  合并总行数: {total_rows}行（包含表头和数据）")
+        print(f"  输出文件: {os.path.basename(output_file)}")
+        print(f"  文件大小: {os.path.getsize(output_file)} 字节")
+        print(f"="*60)
         
     except Exception as e:
         print(f"错误: 合并或保存文件失败: {e}")
