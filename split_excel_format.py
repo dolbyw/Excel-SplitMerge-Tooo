@@ -54,7 +54,8 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
                 for r in dataframe_to_rows(df, index=False, header=True):
                     ws.append(r)
                 
-                total_rows_with_header = len(df) + 1  # 数据行数 + 表头
+                # 对于HTML格式文件，df已经包含所有行（包括表头），不需要额外加1
+                total_rows_with_header = len(df)
                 
             except Exception as e:
                 print(f"读取.xls文件失败: {e}")

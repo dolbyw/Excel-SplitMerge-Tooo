@@ -101,13 +101,26 @@ class ExcelFileProcessor:
                             df = tables[0]  # 取第一个表格
                             # 重置索引以避免产生序号列，并确保不包含索引列
                             df = df.reset_index(drop=True)
-                            # 检查并移除可能的序号列（通常是第一列且为连续数字）
-                            if len(df.columns) > 1 and df.iloc[:, 0].dtype in ['int64', 'float64']:
-                                # 检查第一列是否为连续序号
+                            # 检查并移除可能的序号列（通常是第一列）
+                            # HTML文件中pandas.read_html可能会自动添加序号列
+                            if len(df.columns) > 1:
                                 first_col = df.iloc[:, 0]
-                                if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
-                                    df = df.iloc[:, 1:]  # 移除第一列序号
-                                    print("检测到并移除了HTML文件中的序号列")
+                                # 检查第一列是否为连续序号（数字类型）
+                                if first_col.dtype in ['int64', 'float64']:
+                                    if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
+                                        df = df.iloc[:, 1:]  # 移除第一列序号
+                                        print("检测到并移除了HTML文件中的数字序号列")
+                                # 检查第一列是否为无意义的序号列（如"0", "1", "2"等字符串）
+                                elif first_col.dtype == 'object':
+                                    try:
+                                        # 尝试将第一列转换为数字
+                                        numeric_col = pd.to_numeric(first_col, errors='coerce')
+                                        if not numeric_col.isna().any():  # 如果都能转换为数字
+                                            if (numeric_col == range(len(numeric_col))).all() or (numeric_col == range(1, len(numeric_col) + 1)).all():
+                                                df = df.iloc[:, 1:]  # 移除第一列序号
+                                                print("检测到并移除了HTML文件中的字符串序号列")
+                                    except:
+                                        pass  # 转换失败，保留原列
                             print(f"成功从HTML中读取表格，共{len(df)}行数据")
                             return df
                         else:
@@ -149,13 +162,26 @@ class ExcelFileProcessor:
                                 df = tables[0]
                                 # 重置索引以避免产生序号列，并确保不包含索引列
                                 df = df.reset_index(drop=True)
-                                # 检查并移除可能的序号列（通常是第一列且为连续数字）
-                                if len(df.columns) > 1 and df.iloc[:, 0].dtype in ['int64', 'float64']:
-                                    # 检查第一列是否为连续序号
+                                # 检查并移除可能的序号列（通常是第一列）
+                                # HTML文件中pandas.read_html可能会自动添加序号列
+                                if len(df.columns) > 1:
                                     first_col = df.iloc[:, 0]
-                                    if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
-                                        df = df.iloc[:, 1:]  # 移除第一列序号
-                                        print("检测到并移除了HTML文件中的序号列")
+                                    # 检查第一列是否为连续序号（数字类型）
+                                    if first_col.dtype in ['int64', 'float64']:
+                                        if (first_col == range(len(first_col))).all() or (first_col == range(1, len(first_col) + 1)).all():
+                                            df = df.iloc[:, 1:]  # 移除第一列序号
+                                            print("检测到并移除了HTML文件中的数字序号列")
+                                    # 检查第一列是否为无意义的序号列（如"0", "1", "2"等字符串）
+                                    elif first_col.dtype == 'object':
+                                        try:
+                                            # 尝试将第一列转换为数字
+                                            numeric_col = pd.to_numeric(first_col, errors='coerce')
+                                            if not numeric_col.isna().any():  # 如果都能转换为数字
+                                                if (numeric_col == range(len(numeric_col))).all() or (numeric_col == range(1, len(numeric_col) + 1)).all():
+                                                    df = df.iloc[:, 1:]  # 移除第一列序号
+                                                    print("检测到并移除了HTML文件中的字符串序号列")
+                                        except:
+                                            pass  # 转换失败，保留原列
                                 print(f"HTML读取成功，共{len(df)}行数据")
                             else:
                                 raise ValueError("HTML文件中未找到表格")
