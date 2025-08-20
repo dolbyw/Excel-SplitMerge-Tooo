@@ -1,8 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, Progress, Typography } from "antd";
 import { LogEntry, ProcessingResult } from "../types";
 
 const { Text } = Typography;
+
+// 日志显示配置
+const LOG_CONFIG = {
+  MAX_DISPLAY_LOGS: 1000, // 最大显示日志条数
+  MAX_HEIGHT: 300, // 日志容器最大高度
+} as const;
 
 interface ProcessingInfoProps {
   processing: boolean;
@@ -19,6 +25,15 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
 }) => {
   // 只在有处理任务、日志或结果时才显示组件
   const shouldShow = processing || logs.length > 0 || result !== null;
+
+  // 优化日志显示：限制条目数量，保留最新的日志
+  const displayLogs = useMemo(() => {
+    if (logs.length <= LOG_CONFIG.MAX_DISPLAY_LOGS) {
+      return logs;
+    }
+    // 保留最新的日志条目
+    return logs.slice(-LOG_CONFIG.MAX_DISPLAY_LOGS);
+  }, [logs]);
 
   if (!shouldShow) {
     return null;
@@ -50,6 +65,7 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
           <div
             style={{
               overflow: "auto",
+              maxHeight: LOG_CONFIG.MAX_HEIGHT,
               background: "#f6f8fa",
               border: "1px solid #e1e8ed",
               borderRadius: 8,
@@ -59,9 +75,9 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
               lineHeight: 1.4,
             }}
           >
-            {logs.map((log, index) => (
+            {displayLogs.map((log) => (
               <div
-                key={index}
+                key={log.id || `${log.timestamp}-${log.message}`}
                 style={{
                   marginBottom: "6px",
                   wordBreak: "break-word",

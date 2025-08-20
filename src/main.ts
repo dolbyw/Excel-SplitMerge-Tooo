@@ -3,6 +3,7 @@ import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { ProcessManager, CommandBuilder } from "./utils/processUtils";
+import { PythonLauncher } from "./utils/pythonLauncher";
 
 // 使用环境变量判断开发环境，避免在app初始化前调用app.isPackaged
 const isDev = process.env.NODE_ENV === 'development';
@@ -219,7 +220,7 @@ ipcMain.handle("split-excel", async (_event, options) => {
   const { inputFile, outputDir, rowsPerFile, preserveFormat, copyHeaders } =
     options;
 
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     const scriptName = preserveFormat
       ? "split_excel_format.py"
       : "split_excel.py";
@@ -238,83 +239,29 @@ ipcMain.handle("split-excel", async (_event, options) => {
 
     console.log("执行拆分命令:", scriptPath, args.join(" "));
     console.log("脚本路径:", scriptPath);
-    console.log("脚本是否存在:", fs.existsSync(scriptPath));
 
-    const pythonProcess = spawn("py", [scriptPath, ...args], {
-      cwd: process.cwd(),
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let output = "";
-    let errorOutput = "";
-
-    // 使用ProcessManager创建超时处理
-    const timeoutHandler = ProcessManager.createTimeoutHandler(
-      pythonProcess,
-      ProcessManager.DEFAULT_TIMEOUT,
-      () => {
-        console.log("Python合并进程超时，正在终止...");
-
-        mainWindow?.webContents.send("processing-progress", {
-          type: "error",
-          message: "处理超时，请检查文件大小或网络连接",
-        });
-
-        resolve({
-          success: false,
-          message: "处理超时，请检查文件大小或网络连接",
-          outputFile: "",
-        });
-      },
-    );
-
-    pythonProcess.stdout.on("data", (data) => {
-      const message = data.toString("utf8");
-      output += message;
-      console.log("Python输出:", message.trim());
-
-      // 发送进度更新
-      mainWindow?.webContents.send("processing-progress", {
-        progress: 50, // 简化的进度计算
-        message: message.trim(),
-        type: "info",
-      });
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      const error = data.toString("utf8");
-      errorOutput += error;
-      console.error("Python错误输出:", error.trim());
-    });
-
-    pythonProcess.on("error", (error) => {
-      console.error("Python进程启动失败:", error);
-      timeoutHandler.clearTimeout();
-
-      mainWindow?.webContents.send("processing-progress", {
-        progress: 0,
-        message: `进程启动失败: ${error.message}`,
-        type: "error",
+    try {
+      const result = await PythonLauncher.launch({
+        scriptPath,
+        args,
+        taskType: 'split',
+        onProgress: (data) => {
+          mainWindow?.webContents.send("processing-progress", data);
+        },
+        onError: (error) => {
+          mainWindow?.webContents.send("processing-progress", {
+            progress: 0,
+            message: error,
+            type: "error",
+          });
+        },
       });
 
-      resolve({
-        success: false,
-        message: `进程启动失败: ${error.message}`,
-        outputFiles: [],
-      });
-    });
-
-    pythonProcess.on("close", (code) => {
-      timeoutHandler.clearTimeout();
-
-      console.log("Python进程退出，退出码:", code);
-      console.log("完整输出:", output);
-      if (errorOutput) console.error("完整错误输出:", errorOutput);
-
-      if (code === 0) {
+      if (result.success) {
         // 获取输出文件列表（更健壮的匹配：优先按修改时间筛选最近生成的Excel文件，回退到名称模式匹配）
         let allFiles: string[] = [];
         try {
-          allFiles = fs.readdirSync(outputDir);
+          allFiles = await fs.promises.readdir(outputDir);
           console.log("输出目录文件列表:", allFiles);
         } catch (error) {
           console.error("读取输出目录失败:", error);
@@ -326,16 +273,19 @@ ipcMain.handle("split-excel", async (_event, options) => {
           return;
         }
 
-        const recentExcelFiles = allFiles.filter((file) => {
-          if (!/\.(xlsx|xls)$/i.test(file)) return false;
+        const recentExcelFiles = [];
+        for (const file of allFiles) {
+          if (!/\.(xlsx|xls)$/i.test(file)) continue;
           try {
-            const stat = fs.statSync(path.join(outputDir, file));
+            const stat = await fs.promises.stat(path.join(outputDir, file));
             // 容忍2秒误差，筛选出本次任务开始后生成/修改的文件
-            return stat.mtimeMs >= startTime - 2000;
+            if (stat.mtimeMs >= startTime - 2000) {
+              recentExcelFiles.push(file);
+            }
           } catch {
-            return false;
+            // 忽略无法访问的文件
           }
-        });
+        }
 
         let outputFiles = recentExcelFiles.map((file) =>
           path.join(outputDir, file),
@@ -351,31 +301,26 @@ ipcMain.handle("split-excel", async (_event, options) => {
 
         console.log("检测到输出文件:", outputFiles);
 
-        mainWindow?.webContents.send("processing-progress", {
-          progress: 100,
-          message: "拆分完成！",
-          type: "success",
-        });
-
         resolve({
           success: true,
           message: "拆分完成",
           outputFiles,
         });
       } else {
-        mainWindow?.webContents.send("processing-progress", {
-          progress: 0,
-          message: `拆分失败: ${errorOutput}`,
-          type: "error",
-        });
-
         resolve({
           success: false,
-          message: errorOutput || "拆分失败",
+          message: result.message,
           outputFiles: [],
         });
       }
-    });
+    } catch (error) {
+      console.error("拆分过程中发生错误:", error);
+      resolve({
+        success: false,
+        message: `拆分过程中发生错误: ${error instanceof Error ? error.message : '未知错误'}`,
+        outputFiles: [],
+      });
+    }
   });
 });
 
@@ -384,7 +329,7 @@ ipcMain.handle("merge-excel", async (_event, options) => {
   const { inputDir, outputFile, preserveFormat, removeDuplicateHeaders } =
     options;
 
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     const scriptName = preserveFormat
       ? "merge_excel_format.py"
       : "merge_excel.py";
@@ -399,101 +344,44 @@ ipcMain.handle("merge-excel", async (_event, options) => {
 
     console.log("执行合并命令:", scriptPath, args.join(" "));
 
-    const pythonProcess = spawn("py", [scriptPath, ...args], {
-      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
-    });
-    let output = "";
-    let errorOutput = "";
-
-    // 使用ProcessManager创建超时处理
-    const timeoutHandler = ProcessManager.createTimeoutHandler(
-      pythonProcess,
-      ProcessManager.DEFAULT_TIMEOUT,
-      () => {
-        console.log("Python合并进程超时，正在终止...");
-
-        mainWindow?.webContents.send("processing-progress", {
-          type: "error",
-          message: "处理超时，请检查文件大小或网络连接",
-        });
-
-        resolve({
-          success: false,
-          message: "处理超时，请检查文件大小或网络连接",
-          outputFile: "",
-        });
-      },
-    );
-
-    pythonProcess.stdout.on("data", (data) => {
-      const message = data.toString("utf8");
-      output += message;
-      console.log("Python输出:", message.trim());
-
-      // 发送进度更新
-      mainWindow?.webContents.send("processing-progress", {
-        progress: 50, // 简化的进度计算
-        message: message.trim(),
-        type: "info",
-      });
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      const error = data.toString("utf8");
-      errorOutput += error;
-      console.error("Python错误输出:", error.trim());
-    });
-
-    pythonProcess.on("error", (error) => {
-      console.error("Python合并进程启动失败:", error);
-      timeoutHandler.clearTimeout();
-
-      mainWindow?.webContents.send("processing-progress", {
-        progress: 0,
-        message: `进程启动失败: ${error.message}`,
-        type: "error",
+    try {
+      const result = await PythonLauncher.launch({
+        scriptPath,
+        args,
+        taskType: 'merge',
+        onProgress: (data) => {
+          mainWindow?.webContents.send("processing-progress", data);
+        },
+        onError: (error) => {
+          mainWindow?.webContents.send("processing-progress", {
+            progress: 0,
+            message: error,
+            type: "error",
+          });
+        },
       });
 
-      resolve({
-        success: false,
-        message: `进程启动失败: ${error.message}`,
-        outputFile: "",
-      });
-    });
-
-    pythonProcess.on("close", (code) => {
-      timeoutHandler.clearTimeout();
-
-      console.log("Python进程退出，退出码:", code);
-      console.log("完整输出:", output);
-      if (errorOutput) console.error("完整错误输出:", errorOutput);
-
-      if (code === 0) {
-        mainWindow?.webContents.send("processing-progress", {
-          progress: 100,
-          message: "合并完成！",
-          type: "success",
-        });
-
+      if (result.success) {
         resolve({
           success: true,
           message: "合并完成",
           outputFile,
         });
       } else {
-        mainWindow?.webContents.send("processing-progress", {
-          progress: 0,
-          message: `合并失败: ${errorOutput}`,
-          type: "error",
-        });
-
         resolve({
           success: false,
-          message: errorOutput || "合并失败",
+          message: result.message,
           outputFile: "",
         });
       }
-    });
+    } catch (error) {
+      console.error("合并过程中发生错误:", error);
+      resolve({
+        success: false,
+        message: `合并过程中发生错误: ${error instanceof Error ? error.message : '未知错误'}`,
+        outputFile: "",
+      });
+    }
   });
 });
 
@@ -502,25 +390,27 @@ ipcMain.handle("get-app-config", async () => {
   const configPath = path.join(app.getPath("userData"), "config.json");
 
   try {
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      // 确保新的默认路径存在
-      if (!config.defaultSplitOutputDir) {
-        config.defaultSplitOutputDir = path.join(
-          app.getPath("documents"),
-          "ToooOutput",
-          "Split",
-        );
-      }
-      if (!config.defaultMergeOutputDir) {
-        config.defaultMergeOutputDir = path.join(
-          app.getPath("documents"),
-          "ToooOutput",
-          "Merge",
-        );
-      }
-      return config;
+    // 使用异步方式检查文件是否存在
+    await fs.promises.access(configPath);
+    const configData = await fs.promises.readFile(configPath, "utf8");
+    const config = JSON.parse(configData);
+    
+    // 确保新的默认路径存在
+    if (!config.defaultSplitOutputDir) {
+      config.defaultSplitOutputDir = path.join(
+        app.getPath("documents"),
+        "ToooOutput",
+        "Split",
+      );
     }
+    if (!config.defaultMergeOutputDir) {
+      config.defaultMergeOutputDir = path.join(
+        app.getPath("documents"),
+        "ToooOutput",
+        "Merge",
+      );
+    }
+    return config;
   } catch (error) {
     console.error("读取配置失败:", error);
   }
@@ -549,7 +439,7 @@ ipcMain.handle("save-app-config", async (_event, config) => {
   const configPath = path.join(app.getPath("userData"), "config.json");
 
   try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
     return { success: true };
   } catch (error) {
     console.error("保存配置失败:", error);
@@ -563,13 +453,9 @@ ipcMain.handle("ensure-default-output-dirs", async () => {
     const splitDir = path.join(app.getPath("documents"), "ToooOutput", "Split");
     const mergeDir = path.join(app.getPath("documents"), "ToooOutput", "Merge");
 
-    // 创建目录（如果不存在）
-    if (!fs.existsSync(splitDir)) {
-      fs.mkdirSync(splitDir, { recursive: true });
-    }
-    if (!fs.existsSync(mergeDir)) {
-      fs.mkdirSync(mergeDir, { recursive: true });
-    }
+    // 使用异步方式创建目录（如果不存在）
+    await fs.promises.mkdir(splitDir, { recursive: true });
+    await fs.promises.mkdir(mergeDir, { recursive: true });
 
     return {
       success: true,

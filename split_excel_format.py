@@ -29,19 +29,15 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
         if rows_per_file <= 0:
             raise ValueError(f"每个文件的行数必须大于0，当前值: {rows_per_file}")
         
-        print(f"开始读取Excel文件: {input_file}")
+        print(f"[格式拆分] 开始读取文件: {os.path.basename(input_file)}")
         
         # 检测文件格式并选择合适的处理方式
         if input_file.lower().endswith('.xls'):
-            print("检测到.xls格式文件，使用统一的嗅探式读取")
-            print(f"文件路径: {input_file}")
-            print(f"文件大小: {os.path.getsize(input_file)} 字节")
-            
             # 使用统一的嗅探式读取，自动兼容HTML格式的.xls文件
             try:
                 from utils import ExcelFileProcessor
                 df = ExcelFileProcessor.read_excel_with_optimization(input_file)
-                print(f"成功读取.xls文件，共{len(df)}行数据")
+                print(f"[格式拆分] .xls文件读取完成: {len(df)}行数据")
                 
                 # 将DataFrame转换为openpyxl工作簿以保持格式处理的一致性
                 from openpyxl import Workbook
@@ -63,28 +59,22 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
                 sys.exit(1)
         else:
             # 使用openpyxl读取Excel文件(.xlsx格式)
-            print("检测到.xlsx格式文件，使用openpyxl引擎")
             wb = load_workbook(input_file, read_only=True)
             ws = wb.active
             
             # 获取总行数（包含表头）
             total_rows_with_header = ws.max_row
+            print(f"[格式拆分] .xlsx文件读取完成: {total_rows_with_header}行数据")
         
         if total_rows_with_header == 0:
             print("警告：Excel文件为空")
             return
         
-        print(f"文件总行数（含表头）：{total_rows_with_header}")
-        
         # 分割计算时自动排除源文件第一行表头（默认第一行为表头）
         # 数据行数始终为总行数减1（排除表头行）
         data_rows = max(0, total_rows_with_header - 1)
         
-        print(f"数据行数（排除表头）：{data_rows}")
-        if copy_headers:
-            print("启用表头复制：每个分割文件将包含原始表头信息")
-        else:
-            print("关闭表头复制：所有分割文件均不包含表头信息")
+        print(f"[格式拆分] 数据行: {data_rows}行")
         
         if data_rows == 0:
             print("警告：没有数据行需要拆分")
@@ -122,7 +112,8 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
 
     # 计算分割文件数量（按数据行数切分）
     num_files = (data_rows + rows_per_file - 1) // rows_per_file
-    print(f"准备拆分为{num_files}个文件，每个文件最多{rows_per_file}行")
+    header_mode = "包含表头" if copy_headers else "仅数据"
+    print(f"[格式拆分] 开始拆分: {num_files}个文件 ({header_mode})")
     
     # 创建输出目录（如果不存在）
     os.makedirs(output_dir, exist_ok=True)
@@ -145,8 +136,7 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
             source_start_row = 2 + data_start_idx
             source_end_row = 1 + data_end_idx
             
-            print(f"正在处理第{i+1}/{num_files}个文件...")
-            print(f"数据范围：第{source_start_row}行到第{source_end_row}行")
+            print(f"[格式拆分] 处理文件 {i+1}/{num_files}")
             
             # 创建新工作簿
             new_wb = Workbook()
@@ -187,12 +177,8 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=True):
 
             # 计算实际行数
             actual_data_rows = data_end_idx - data_start_idx
-            total_file_rows = actual_data_rows + (1 if copy_headers else 0)
-            print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_file_rows}）')
-            
-            # 计算并显示进度
-            progress = ((i + 1) / num_files) * 100
-            print(f"进度：{progress:.1f}% ({i+1}/{num_files})")
+            output_filename = os.path.basename(output_file)
+            print(f"[格式拆分] 完成: {output_filename} ({actual_data_rows}行)")
         
         except Exception as e:
             print(f"错误：处理第{i+1}个文件时失败: {e}")
@@ -203,7 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('--input', required=True, help='输入Excel文件路径')
     parser.add_argument('--output', required=True, help='输出目录路径')
     parser.add_argument('--rows', type=int, default=1000, help='每个文件的行数（默认：1000）')
-    parser.add_argument('--copy_headers', action='store_true', help='是否在每个拆分文件中复制表头')
+    parser.add_argument('--copy_headers', type=lambda x: x.lower() == 'true', default=False, help='是否在每个拆分文件中复制表头')
     
     args = parser.parse_args()
     

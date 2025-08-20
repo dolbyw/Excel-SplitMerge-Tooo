@@ -27,13 +27,11 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         if rows_per_file <= 0:
             raise ValueError(f"每个文件的行数必须大于0，当前值: {rows_per_file}")
         
-        print(f"开始读取Excel文件: {input_file}")
-        print(f"文件路径: {input_file}")
-        print(f"文件大小: {os.path.getsize(input_file)} 字节")
+        print(f"[拆分] 开始读取文件: {os.path.basename(input_file)}")
         
         # 使用统一的嗅探式读取，自动兼容扩展名与实际容器不一致的.xls文件
         df = ExcelFileProcessor.read_excel_with_optimization(input_file)
-        print(f"成功读取文件，共{len(df)}行数据")
+        print(f"[拆分] 文件读取完成: {len(df)}行数据")
 
     except FileNotFoundError as e:
         print(f"错误: {e}")
@@ -48,11 +46,6 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         print(f"读取Excel文件失败: {e}")
         sys.exit(1)
 
-    # 对于HTML格式文件，所有行都是数据行（包括表头），不需要跳过第一行
-    # 对于其他格式文件，pandas已经将第一行作为列名处理，DataFrame中都是数据行
-    # 因此，我们直接使用整个DataFrame作为数据
-    print(f"文件总行数：{len(df)}行")
-    
     # 检查是否为HTML格式文件（通过文件内容判断）
     is_html_format = False
     try:
@@ -67,13 +60,12 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         # HTML格式：第一行是表头，其余是数据行
         header_row = df.iloc[0:1].copy() if len(df) > 0 else None
         data_df = df.iloc[1:].copy() if len(df) > 1 else pd.DataFrame(columns=df.columns)
-        print(f"HTML格式文件 - 表头行数：{1 if header_row is not None and len(header_row) > 0 else 0}")
-        print(f"HTML格式文件 - 数据行数（排除表头）：{len(data_df)}")
+        print(f"[拆分] HTML格式 - 数据行: {len(data_df)}行")
     else:
         # 其他格式：pandas已处理表头，所有DataFrame行都是数据行
         header_row = None  # 没有单独的表头行
         data_df = df.copy()  # 所有行都是数据行
-        print(f"标准格式文件 - 数据行数：{len(data_df)}行（pandas已将原文件表头作为列名处理）")
+        print(f"[拆分] 标准格式 - 数据行: {len(data_df)}行")
 
     # 计算分割文件数量（基于数据行，不包含表头）
     total_data_rows = len(data_df)
@@ -101,11 +93,8 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
         return
 
     num_files = (total_data_rows + rows_per_file - 1) // rows_per_file
-    print(f"准备拆分为{num_files}个文件，每个文件最多{rows_per_file}行数据")
-    if copy_headers:
-        print("启用表头复制：每个分割文件将包含原始表头信息")
-    else:
-        print("关闭表头复制：所有分割文件均不包含表头信息")
+    header_mode = "包含表头" if copy_headers else "仅数据"
+    print(f"[拆分] 开始拆分: {num_files}个文件 ({header_mode})")
 
     os.makedirs(output_dir, exist_ok=True)
     base_name = os.path.splitext(os.path.basename(input_file))[0]
@@ -115,7 +104,7 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
             start_idx = i * rows_per_file
             end_idx = min((i + 1) * rows_per_file, total_data_rows)
             
-            print(f"正在处理第{i+1}/{num_files}个文件...")
+            print(f"[拆分] 处理文件 {i+1}/{num_files}")
             
             # 获取当前分块的数据
             chunk = data_df.iloc[start_idx:end_idx].copy()
@@ -151,25 +140,11 @@ def split_excel_file(input_file, output_dir, rows_per_file, copy_headers=False):
             
             # 计算实际行数
             actual_data_rows = len(chunk)
-            if copy_headers and is_html_format and header_row is not None:
-                # HTML格式且复制表头：总行数 = 表头行数 + 数据行数
-                total_rows_in_file = actual_data_rows + 1
-                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}，包含表头）')
-            elif copy_headers and not is_html_format:
-                # 标准格式且复制表头：pandas会自动添加列名行
-                total_rows_in_file = actual_data_rows + 1
-                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}，包含列名表头）')
-            else:
-                # 不复制表头：只有数据行
-                total_rows_in_file = actual_data_rows
-                print(f'已创建文件：{output_file}（数据行数：{actual_data_rows}，总行数：{total_rows_in_file}）')
+            output_filename = os.path.basename(output_file)
+            print(f"[拆分] 完成: {output_filename} ({actual_data_rows}行)")
             
             # 显式删除变量以释放内存
             del chunk
-            
-            # 计算并显示进度
-            progress = ((i + 1) / num_files) * 100
-            print(f"进度：{progress:.1f}% ({i+1}/{num_files})")
             
         except Exception as e:
             print(f"错误：处理第{i+1}个文件时失败: {e}")
@@ -180,7 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--input', required=True, help='输入Excel文件路径')
     parser.add_argument('--output', required=True, help='输出目录路径')
     parser.add_argument('--rows', type=int, default=1000, help='每个文件的行数（默认：1000）')
-    parser.add_argument('--copy_headers', action='store_true', help='是否在每个拆分文件中复制表头')
+    parser.add_argument('--copy_headers', type=lambda x: x.lower() == 'true', default=False, help='是否在每个拆分文件中复制表头')
 
     args = parser.parse_args()
 

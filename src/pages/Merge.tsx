@@ -18,6 +18,7 @@ import { FolderOpenOutlined, MergeCellsOutlined } from "@ant-design/icons";
 import { AppConfig, MergeFormData, LogEntry, ProcessingResult } from "../types";
 import { FileValidator } from "../utils/fileUtils";
 import { ValidationUtils } from "../utils/errorUtils";
+import { useLogBatcher } from "../hooks/useLogBatcher";
 
 const Merge: React.FC = () => {
   const [form] = Form.useForm();
@@ -25,8 +26,9 @@ const Merge: React.FC = () => {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { logs, addLogs, clearLogs, flushLogs } = useLogBatcher(100);
   const [result, setResult] = useState<ProcessingResult | null>(null);
+  const outputDir = Form.useWatch("outputDir", form);
 
   useEffect(() => {
     // 加载应用配置并创建默认目录
@@ -171,7 +173,7 @@ const Merge: React.FC = () => {
     setLoading(true);
     setProcessing(true);
     setProgress(0);
-    setLogs([]);
+    clearLogs();
     setResult(null);
 
     window.electronAPI.onProcessingProgress((data) => {
@@ -180,16 +182,16 @@ const Merge: React.FC = () => {
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
-      setLogs((prev) => [
-        ...prev,
-        ...lines.map((line, index) => ({
-          id: `${Date.now()}-${index}`,
-          level: data.type as "info" | "error",
-          message: line,
-          timestamp: new Date().toLocaleTimeString(),
-          type: data.type as "info" | "error" | "success",
-        })),
-      ]);
+      
+      // 使用微批处理添加日志
+      const newLogs = lines.map((line, index) => ({
+        id: `${Date.now()}-${index}`,
+        level: data.type as "info" | "error",
+        message: line,
+        timestamp: new Date().toLocaleTimeString(),
+        type: data.type as "info" | "error" | "success",
+      }));
+      addLogs(newLogs);
     });
 
     try {
@@ -212,6 +214,7 @@ const Merge: React.FC = () => {
     } finally {
       setLoading(false);
       setProcessing(false);
+      flushLogs(); // 确保所有日志都显示
       window.electronAPI.removeProcessingProgressListener();
     }
   };
@@ -269,7 +272,6 @@ const Merge: React.FC = () => {
                 placeholder="选择输出目录（文件名自动生成：源目录名+Merge.xlsx）"
                 readOnly
                 style={{ width: "calc(100% - 140px)" }}
-                value={form.getFieldValue("outputDir")}
               />
               <Button
                 type="default"
@@ -283,7 +285,7 @@ const Merge: React.FC = () => {
                 type="default"
                 onClick={handleSetDefaultOutputDir}
                 style={{ width: "70px" }}
-                disabled={!form.getFieldValue("outputDir")}
+                disabled={!outputDir}
               >
                 设为默认
               </Button>

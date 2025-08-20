@@ -29,16 +29,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             os.makedirs(output_dir, exist_ok=True)
             print(f"创建输出目录: {output_dir}")
         
-        print(f"开始扫描目录: {input_dir}")
+        print(f"[合并] 扫描目录: {os.path.basename(input_dir)}")
         # 获取所有Excel文件
         excel_files = glob.glob(os.path.join(input_dir, "*.xlsx")) + glob.glob(os.path.join(input_dir, "*.xls"))
         
         if not excel_files:
             raise ValueError(f"在目录 {input_dir} 中未找到Excel文件(.xlsx/.xls)")
         
-        print(f"找到{len(excel_files)}个Excel文件")
-        for idx, file in enumerate(excel_files, 1):
-            print(f"  文件{idx}: {os.path.basename(file)}")
+        print(f"[合并] 找到 {len(excel_files)} 个Excel文件")
         
     except FileNotFoundError as e:
         print(f"错误: {e}")
@@ -53,17 +51,12 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
     # 读取所有Excel文件并合并
     all_data = []
     total_files = len(excel_files)
-    print(f"准备合并{total_files}个Excel文件")
     
     for i, file_path in enumerate(excel_files, 1):
         try:
-            print(f"正在读取文件 ({i}/{total_files}): {file_path}")
-            try:
-                print(f"  文件大小: {os.path.getsize(file_path)} 字节")
-            except Exception:
-                pass
+            print(f"[合并] 读取文件 {i}/{total_files}: {os.path.basename(file_path)}")
 
-            # 统一使用嗅探式读取，自动兼容“扩展名.xls但实际为.xlsx(Zip)”的文件
+            # 统一使用嗅探式读取，自动兼容"扩展名.xls但实际为.xlsx(Zip)"的文件
             df = ExcelFileProcessor.read_excel_with_optimization(file_path)
 
             if df.empty:
@@ -81,15 +74,7 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                         pass
             
             all_data.append(df)
-            print(f"文件详细信息: {os.path.basename(file_path)}")
-            print(f"  DataFrame行数: {len(df)}行（pandas已将原文件第1行作为列名）")
-            print(f"  列数: {len(df.columns)}列")
-            print(f"  说明: 原文件有{len(df)+1}行，第1行被pandas作为列名处理")
-            
-            # 显示进度
-            progress = (i / total_files) * 100
-            print(f"读取进度：{progress:.1f}% ({i}/{total_files})")
-            print(f"---")
+            print(f"[合并] 完成: {len(df)}行 x {len(df.columns)}列")
             
         except pd.errors.EmptyDataError:
             print(f"警告：文件 {file_path} 为空或无有效数据，跳过")
@@ -103,19 +88,31 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
         return
     
     try:
-        print("开始合并数据...")
+        print(f"[合并] 开始数据合并处理")
+        
+        # 在合并前对每个DataFrame进行序号列检测和移除
+        cleaned_data = []
+        for i, df in enumerate(all_data):
+            # 使用增强的序号列检测逻辑
+            cleaned_df = ExcelFileProcessor._remove_sequence_columns(df)
+            cleaned_data.append(cleaned_df)
+            if len(cleaned_df.columns) != len(df.columns):
+                print(f"[合并] 文件{i+1}: 移除序号列")
+        
+        # 使用清理后的数据进行合并
+        all_data = cleaned_data
         
         # 根据表头去重设置处理数据
+        header_mode = "去重表头" if remove_duplicate_headers else "保留表头"
+        print(f"[合并] 合并模式: {header_mode}")
+        
         if remove_duplicate_headers:
             # 开启表头去重：只保留第一个文件的表头，其他文件跳过表头
-            print("启用表头去重：只保留第一个文件的表头")
             processed_data = []
             for i, df in enumerate(all_data):
                 if i == 0:
                     # 第一个文件：保留完整数据包括表头
                     processed_data.append(df)
-                    print(f"文件{i+1}处理: 保留完整数据")
-                    print(f"  添加行数: {len(df)}行（包含表头）")
                 else:
                     # 其他文件：只保留数据行（pandas已处理表头）
                     if len(df) > 0:  # 确保文件不为空
@@ -125,21 +122,14 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                         # 确保列名一致（使用第一个文件的列名）
                         data_only.columns = all_data[0].columns
                         processed_data.append(data_only)
-                        print(f"文件{i+1}处理: 启用表头去重")
-                        print(f"  保留所有数据行: {len(data_only)}行（原文件{len(df)+1}行 - 1行表头 = {len(df)}行数据）")
-                    else:
-                        print(f"文件{i+1}处理: 空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         else:
             # 关闭表头去重：保留所有文件的原始内容，包括各自的表头行
-            print("关闭表头去重：保留所有文件的表头行")
             processed_data = []
             for i, df in enumerate(all_data):
                 if i == 0:
                     # 第一个文件：正常添加
                     processed_data.append(df)
-                    print(f"文件{i+1}处理: 保留完整数据")
-                    print(f"  添加行数: {len(df)}行（包含表头）")
                 else:
                     # 其他文件：将表头作为数据行添加
                     if len(df) > 0:
@@ -151,10 +141,6 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                         # 先添加表头行，再添加数据
                         processed_data.append(header_row)
                         processed_data.append(df_copy)
-                        print(f"文件{i+1}处理: 关闭表头去重")
-                        print(f"  添加表头行+数据行: {len(df_copy)+1}行（1行表头 + {len(df_copy)}行数据）")
-                    else:
-                        print(f"文件{i+1}处理: 空文件，跳过")
             merged_df = pd.concat(processed_data, ignore_index=True) if processed_data else pd.DataFrame()
         
         # 确保输出文件为.xlsx格式（即使输入包含.xls文件）
@@ -166,7 +152,13 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
                 output_file += '.xlsx'
                 print(f"输出文件已自动添加.xlsx扩展名")
         
-        print(f"开始保存到文件: {output_file}")
+        # 最终检查：确保合并后的DataFrame不包含序号列
+        original_columns = len(merged_df.columns)
+        merged_df = ExcelFileProcessor._remove_sequence_columns(merged_df)
+        if len(merged_df.columns) != original_columns:
+            print(f"[合并] 最终移除序号列")
+        
+        print(f"[合并] 保存文件: {os.path.basename(output_file)}")
         # 保存合并后的文件（统一使用openpyxl引擎确保.xlsx格式）
         try:
             with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
@@ -175,13 +167,7 @@ def merge_excel_files(input_dir, output_file, remove_duplicate_headers=False):
             print(f"警告：使用openpyxl引擎保存失败，尝试默认方法: {e}")
             merged_df.to_excel(output_file, index=False)
         
-        print(f"="*60)
-        print(f"合并完成！数据完整性统计:")
-        print(f"  处理文件数: {len(excel_files)}个")
-        print(f"  合并总行数: {len(merged_df)}行（包含表头和数据）")
-        print(f"  输出文件: {os.path.basename(output_file)}")
-        print(f"  文件大小: {os.path.getsize(output_file)} 字节")
-        print(f"="*60)
+        print(f"[合并] 完成: {len(excel_files)}个文件 → {len(merged_df)}行数据")
         
     except Exception as e:
         print(f"错误: 合并或保存文件失败: {e}")
@@ -191,7 +177,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='合并Excel文件')
     parser.add_argument('--input_dir', required=True, help='输入Excel文件所在目录')
     parser.add_argument('--output_file', required=True, help='输出文件路径')
-    parser.add_argument('--remove_duplicate_headers', action='store_true', help='是否移除重复的表头')
+    parser.add_argument('--remove_duplicate_headers', type=lambda x: x.lower() == 'true', default=False, help='是否移除重复的表头')
     
     args = parser.parse_args()
     

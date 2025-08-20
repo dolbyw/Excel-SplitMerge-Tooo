@@ -198,9 +198,8 @@ export class CommandBuilder {
   ): CommandBuilder {
     if (value !== undefined) {
       if (typeof value === "boolean") {
-        if (value) {
-          this.args.push(`--${name}`);
-        }
+        // 对于布尔值，使用--name=value的格式，确保false值也能正确传递
+        this.args.push(`--${name}=${value}`);
       } else {
         this.args.push(`--${name}`, String(value));
       }
